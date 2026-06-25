@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Malayalam OCR & English Translator</title>
+  
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="A premium mobile-optimized Progressive Web App that performs instant Malayalam OCR and translates it to English using Gemini AI.">
+  <meta name="theme-color" content="#7c3aed">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Ambient background glow elements -->
+  <div class="ambient-glow-1"></div>
+
+  <div class="app-container">
+    
+    <!-- Header -->
+    <header>
+      <div class="logo-group">
+        <img class="logo-icon" src="icon.svg" alt="App Logo">
+        <h1>MalTranslate</h1>
+      </div>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings" title="Open Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="22" height="22">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- API Warning Banner -->
+    <div class="api-warning-banner" id="apiKeyBanner" style="display: none;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#fca5a5" width="32" height="32">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <p>Gemini API Key is missing. Please configure it in Settings to enable translations.</p>
+      <button class="btn-warning" id="setupApiKeyBtn">Set up API Key</button>
+    </div>
+
+    <!-- Main Workspace Card (Upload / Capture) -->
+    <main class="upload-card">
+      
+      <!-- Drag & Drop Zone -->
+      <div class="dropzone" id="dropzone">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <span>Upload or Drag Image here</span>
+        <span class="dropzone-subtext">Supports PNG, JPG, JPEG</span>
+        <input type="file" id="fileInput" class="hidden-input" accept="image/*">
+      </div>
+
+      <!-- Image Preview -->
+      <div class="preview-container" id="previewContainer">
+        <img class="preview-img" id="previewImg" src="" alt="Selected Preview">
+        <button class="clear-preview-btn" id="clearPreviewBtn" aria-label="Clear Image" title="Remove Image">&times;</button>
+      </div>
+
+      <!-- Actions Grid -->
+      <div class="control-actions">
+        <button class="btn-translate" id="translateBtn" disabled>
+          <div class="spinner" id="translateSpinner"></div>
+          <span id="translateBtnText">Extract & Translate</span>
+        </button>
+        <button class="btn-camera" id="cameraBtn" aria-label="Open Camera" title="Capture from Camera">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <circle cx="12" cy="13" r="4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+          </svg>
+        </button>
+      </div>
+    </main>
+
+    <!-- Results Section -->
+    <section class="results-section" id="resultsSection">
+      <!-- Malayalam Result Card -->
+      <div class="result-card">
+        <div class="result-header">
+          <h2 class="result-title">Malayalam OCR</h2>
+          <div class="card-actions">
+            <button class="btn-small" id="copyMalBtn">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              Copy
+            </button>
+          </div>
+        </div>
+        <textarea class="text-box malayalam" id="malTextarea" placeholder="Extracted Malayalam text will appear here..."></textarea>
+      </div>
+
+      <!-- English Translation Card -->
+      <div class="result-card english">
+        <div class="result-header">
+          <h2 class="result-title">English Translation</h2>
+          <div class="card-actions">
+            <button class="btn-small" id="speakBtn">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+              Speak
+            </button>
+            <button class="btn-small" id="copyEngBtn">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+              Copy
+            </button>
+          </div>
+        </div>
+        <textarea class="text-box" id="engTextarea" placeholder="English translation will appear here..."></textarea>
+      </div>
+    </section>
+
+    <!-- History Panel -->
+    <section class="history-section">
+      <div class="history-header" id="historyHeader">
+        <h2 class="history-title">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Recent Translations
+        </h2>
+        <svg id="historyChevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20" style="transition: var(--transition-smooth);">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+      <div class="history-list" id="historyList">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Camera Interface Overlay -->
+  <div class="camera-overlay" id="cameraOverlay">
+    <button class="close-camera-btn" id="closeCameraBtn" aria-label="Close Camera">&times;</button>
+    <video class="camera-preview" id="cameraVideo" autoplay playsinline></video>
+    <div class="camera-controls">
+      <button class="shutter-btn" id="shutterBtn" aria-label="Take Photo"></button>
+    </div>
+  </div>
+
+  <!-- Settings Modal Dialog -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">Settings</h2>
+        <button class="icon-btn" id="closeModalBtn" aria-label="Close Settings" style="width: 32px; height: 32px; font-size: 1.25rem;">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="apiKeyInput">Gemini API Key</label>
+        <div class="api-key-container">
+          <input type="password" class="input-text" id="apiKeyInput" placeholder="Enter AI Studio API Key">
+          <button class="toggle-pwd-btn" id="toggleApiKey" aria-label="Toggle password visibility">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </button>
+        </div>
+        <span class="form-help">Don't have a key? Get one for free at <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="modelSelect">Gemini Model</label>
+        <select class="select-model" id="modelSelect">
+          <option value="gemini-3.5-flash">Gemini 3.5 Flash (Fast, Recommended)</option>
+          <option value="gemini-3.5-pro">Gemini 3.5 Pro (Premium Reasoning)</option>
+          <option value="gemini-3.1-pro">Gemini 3.1 Pro (High Quality)</option>
+          <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (Lightweight)</option>
+        </select>
+        <span class="form-help">"Flash" models are faster and highly accurate for text extraction and translation.</span>
+      </div>
+
+      <button class="btn-primary" id="saveSettingsBtn">Save Configuration</button>
+    </div>
+  </div>
+
+  <!-- Toast Notification Popup -->
+  <div class="toast" id="toast">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="var(--accent-secondary)" width="18" height="18">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <span id="toastText">Success</span>
+  </div>
+
+  <!-- JS Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

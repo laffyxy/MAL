@@ -1,0 +1,18 @@
+{
+  "name": "Malayalam OCR & English Translator",
+  "short_name": "MalTranslate",
+  "description": "OCR Malayalam text and translate to English using Gemini AI.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c0d12",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
