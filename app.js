@@ -5,9 +5,13 @@ let selectedFileBase64 = '';
 let selectedFileMime = '';
 let history = JSON.parse(localStorage.getItem('translation_history')) || [];
 let activeStream = null;
+let CURRENT_THEME = localStorage.getItem('theme') || 'light';
 
 // DOM Elements
 const elements = {
+  // Theme Toggle
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
+
   // Settings
   apiKeyBanner: document.getElementById('apiKeyBanner'),
   setupApiKeyBtn: document.getElementById('setupApiKeyBtn'),
@@ -42,7 +46,6 @@ const elements = {
   engTextarea: document.getElementById('engTextarea'),
   copyMalBtn: document.getElementById('copyMalBtn'),
   copyEngBtn: document.getElementById('copyEngBtn'),
-  speakBtn: document.getElementById('speakBtn'),
 
   // History
   historyHeader: document.getElementById('historyHeader'),
@@ -66,6 +69,9 @@ function init() {
     });
   }
 
+  // Apply default or stored theme
+  applyTheme(CURRENT_THEME);
+
   checkApiKey();
   loadHistory();
   setupEventListeners();
@@ -77,6 +83,11 @@ function init() {
 
 // Event Listeners
 function setupEventListeners() {
+  // Theme Toggle
+  if (elements.themeToggleBtn) {
+    elements.themeToggleBtn.addEventListener('click', toggleTheme);
+  }
+
   // Settings Modals
   elements.setupApiKeyBtn.addEventListener('click', openSettings);
   elements.settingsBtn.addEventListener('click', openSettings);
@@ -118,7 +129,10 @@ function setupEventListeners() {
   // Results Actions
   elements.copyMalBtn.addEventListener('click', () => copyToClipboard(elements.malTextarea.value, 'Malayalam text copied!'));
   elements.copyEngBtn.addEventListener('click', () => copyToClipboard(elements.engTextarea.value, 'English translation copied!'));
-  elements.speakBtn.addEventListener('click', speakTranslation);
+
+  // Auto-resize results on user input
+  elements.malTextarea.addEventListener('input', () => adjustTextareaHeight(elements.malTextarea));
+  elements.engTextarea.addEventListener('input', () => adjustTextareaHeight(elements.engTextarea));
 
   // History Actions
   elements.historyHeader.addEventListener('click', toggleHistoryList);
@@ -395,6 +409,10 @@ async function runTranslation() {
     elements.engTextarea.value = data.translation || '';
     elements.resultsSection.style.display = 'flex';
     
+    // Auto-resize textareas to fit content
+    adjustTextareaHeight(elements.malTextarea);
+    adjustTextareaHeight(elements.engTextarea);
+    
     // Auto Scroll to results
     elements.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -490,6 +508,10 @@ window.loadHistoryItem = function(id) {
   elements.translateBtn.disabled = false;
   elements.resultsSection.style.display = 'flex';
   
+  // Auto-resize textareas to fit content
+  adjustTextareaHeight(elements.malTextarea);
+  adjustTextareaHeight(elements.engTextarea);
+  
   elements.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   showToast('Loaded translation from history!');
 };
@@ -527,34 +549,6 @@ function copyToClipboard(text, successMsg) {
     });
 }
 
-// Speak English Translation (TTS)
-function speakTranslation() {
-  const text = elements.engTextarea.value;
-  if (!text) return;
-
-  // Stop any current speaking
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'en-US';
-  
-  // Highlight speaking state
-  elements.speakBtn.style.color = 'var(--accent-secondary)';
-  elements.speakBtn.style.borderColor = 'var(--accent-secondary)';
-  
-  utterance.onend = () => {
-    elements.speakBtn.style.color = '';
-    elements.speakBtn.style.borderColor = '';
-  };
-
-  utterance.onerror = () => {
-    elements.speakBtn.style.color = '';
-    elements.speakBtn.style.borderColor = '';
-    showToast('Failed to speak translation.');
-  };
-
-  window.speechSynthesis.speak(utterance);
-}
 
 // Toast System
 let toastTimeout;
@@ -579,6 +573,48 @@ function escapeHTML(str) {
       '"': '&quot;'
     }[tag] || tag)
   );
+}
+
+// Auto-resize textareas to fit content
+function adjustTextareaHeight(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+// Theme Management Functions
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.body.classList.add('dark-mode');
+  } else {
+    document.body.classList.remove('dark-mode');
+  }
+  CURRENT_THEME = theme;
+  localStorage.setItem('theme', theme);
+  updateThemeIcon(theme);
+}
+
+function toggleTheme() {
+  const newTheme = CURRENT_THEME === 'light' ? 'dark' : 'light';
+  applyTheme(newTheme);
+}
+
+function updateThemeIcon(theme) {
+  if (!elements.themeToggleBtn) return;
+  if (theme === 'dark') {
+    elements.themeToggleBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="22" height="22">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+      </svg>
+    `;
+    elements.themeToggleBtn.title = 'Switch to Light Mode';
+  } else {
+    elements.themeToggleBtn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="22" height="22">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+      </svg>
+    `;
+    elements.themeToggleBtn.title = 'Switch to Dark Mode';
+  }
 }
 
 // Initialize on page load
