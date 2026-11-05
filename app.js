@@ -382,6 +382,11 @@ async function runTranslation() {
     return;
   }
 
+  if (!navigator.onLine) {
+    showToast("You're offline. Connect to the internet and try again.");
+    return;
+  }
+
   // Set Loading UI
   setLoadingState(true);
 
@@ -422,14 +427,22 @@ async function runTranslation() {
   };
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': API_KEY
-      },
-      body: JSON.stringify(requestBody)
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': API_KEY
+        },
+        body: JSON.stringify(requestBody)
+      });
+    } catch (_) {
+      // fetch only rejects when the request never got a response (offline, DNS, blocked)
+      throw new Error(navigator.onLine
+        ? "Couldn't reach Gemini. Check your connection or any ad/content blocker and try again."
+        : "You're offline. Connect to the internet and try again.");
+    }
 
     if (!response.ok) {
       let message = `API request failed (HTTP ${response.status})`;
