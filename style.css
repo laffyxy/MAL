@@ -3,18 +3,13 @@
 :root {
   color-scheme: light;
   --bg-primary: #ffffff;
-  --bg-secondary: #ffffff;
   --bg-card: #ffffff;
   --bg-modal: #ffffff;
   --bg-subtle: #f5f5f5;
 
   /* Accent is the ink colour: black on light, white on dark */
   --accent-primary: #0a0a0a;
-  --accent-secondary: #0a0a0a;
-  --accent-blue: #0a0a0a;
   --on-accent: #ffffff;
-  --gradient-main: #0a0a0a;
-  --gradient-glow: #f5f5f5;
   --dot-color: #b5b5b5;
 
   --text-primary: #0a0a0a;
@@ -22,14 +17,10 @@
   --text-muted: #8a8a8a;
 
   --border-color: #e5e5e5;
-  --border-hover: #0a0a0a;
   --border-focus: #0a0a0a;
 
   --radius: 4px;
-  --shadow-lg: none;
-  --glass-blur: none;
   --transition-smooth: all 0.2s ease;
-  --transition-bounce: all 0.2s ease;
 
   --font-display: 'Inter Tight', 'Inter', system-ui, -apple-system, sans-serif;
 
@@ -38,8 +29,6 @@
   --bg-dropzone: #ffffff;
   --bg-text-box: #fafafa;
   --border-text-box: #e5e5e5;
-  --bg-history-item: #ffffff;
-  --bg-history-item-hover: #fafafa;
   --bg-toast: #0a0a0a;
   --text-toast: #ffffff;
   --bg-input: #ffffff;
@@ -52,17 +41,12 @@
 :root.dark-mode {
   color-scheme: dark;
   --bg-primary: #0a0a0a;
-  --bg-secondary: #111111;
   --bg-card: #0a0a0a;
   --bg-modal: #111111;
   --bg-subtle: #171717;
 
   --accent-primary: #fafafa;
-  --accent-secondary: #fafafa;
-  --accent-blue: #fafafa;
   --on-accent: #0a0a0a;
-  --gradient-main: #fafafa;
-  --gradient-glow: #171717;
   --dot-color: #555555;
 
   --text-primary: #fafafa;
@@ -70,7 +54,6 @@
   --text-muted: #737373;
 
   --border-color: #262626;
-  --border-hover: #fafafa;
   --border-focus: #fafafa;
 
   --bg-icon-btn: transparent;
@@ -78,8 +61,6 @@
   --bg-dropzone: #0a0a0a;
   --bg-text-box: #111111;
   --border-text-box: #262626;
-  --bg-history-item: #0a0a0a;
-  --bg-history-item-hover: #111111;
   --bg-toast: #fafafa;
   --text-toast: #0a0a0a;
   --bg-input: #0a0a0a;

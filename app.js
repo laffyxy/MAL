@@ -3,7 +3,7 @@ let API_KEY = localStorage.getItem('gemini_api_key') || '';
 let CURRENT_MODEL = localStorage.getItem('gemini_model') || 'gemini-3.5-flash';
 let selectedFileBase64 = '';
 let selectedFileMime = '';
-let history = [];
+let historyItems = [];
 let currentHistoryId = null; // history record shown in the results, kept in sync on re-translate
 // History lives in IndexedDB (much larger quota than localStorage). localStorage is
 // read here for older installs (migrated on startup) and used as a fallback store.
@@ -13,7 +13,7 @@ let historyDB = null;     // null → fall back to localStorage
 let historyReady = null;  // resolves once history has been loaded from IndexedDB
 try {
   const stored = JSON.parse(localStorage.getItem(HISTORY_KEY));
-  if (Array.isArray(stored)) history = stored;
+  if (Array.isArray(stored)) historyItems = stored;
 } catch (e) {
   console.warn('Discarding corrupt translation history:', e);
 }
@@ -481,7 +481,7 @@ async function openCropEditor() {
     try {
       sourceImage = await loadImage(elements.previewImg.src);
       imageEdit = { rotation: 0, crop: null };
-    } catch (_) {
+    } catch {
       showToast('This image cannot be edited.', { type: 'error' });
       return;
     }
@@ -863,7 +863,7 @@ async function callGemini(parts, schema) {
       },
       body: JSON.stringify(requestBody)
     });
-  } catch (_) {
+  } catch {
     // fetch only rejects when the request never got a response (offline, DNS, blocked)
     throw new Error(navigator.onLine
       ? "Couldn't reach Gemini. Check your connection or any ad/content blocker and try again."
@@ -875,7 +875,7 @@ async function callGemini(parts, schema) {
     try {
       const errorData = await response.json();
       if (errorData.error?.message) message = errorData.error.message;
-    } catch (_) { /* non-JSON error body */ }
+    } catch { /* non-JSON error body */ }
     throw new Error(message);
   }
 
@@ -894,7 +894,7 @@ async function callGemini(parts, schema) {
 
   try {
     return JSON.parse(textResponse);
-  } catch (_) {
+  } catch {
     throw new Error('Gemini returned a response that could not be parsed.');
   }
 }
@@ -961,7 +961,7 @@ function setRetranslateLoading(isLoading) {
 
 async function updateCurrentHistoryRecord(ocrText, translationText) {
   await historyReady;
-  const record = currentHistoryId && history.find(h => h.id === currentHistoryId);
+  const record = currentHistoryId && historyItems.find(h => h.id === currentHistoryId);
   if (!record) return;
   record.ocr = ocrText;
   record.translation = translationText;
@@ -994,10 +994,10 @@ async function saveToHistory(ocrText, translationText, imageSrc) {
     image: imageSrc
   };
 
-  history.unshift(record); // Add to beginning
+  historyItems.unshift(record); // Add to beginning
   currentHistoryId = record.id;
-  if (history.length > HISTORY_LIMIT) {
-    history.length = HISTORY_LIMIT;
+  if (historyItems.length > HISTORY_LIMIT) {
+    historyItems.length = HISTORY_LIMIT;
   }
 
   const saved = await persistHistory();
@@ -1015,9 +1015,9 @@ async function initHistoryStore() {
     historyDB = await openHistoryDB();
     const stored = await idbRequest('readonly', store => store.get(HISTORY_KEY));
     if (Array.isArray(stored)) {
-      history = stored;
-    } else if (history.length) {
-      await idbRequest('readwrite', store => store.put(history, HISTORY_KEY));
+      historyItems = stored;
+    } else if (historyItems.length) {
+      await idbRequest('readwrite', store => store.put(historyItems, HISTORY_KEY));
     }
     localStorage.removeItem(HISTORY_KEY); // frees ~MBs of localStorage once migrated
   } catch (e) {
@@ -1053,7 +1053,7 @@ async function persistHistory() {
 
   if (historyDB) {
     try {
-      await idbRequest('readwrite', store => store.put(history, HISTORY_KEY));
+      await idbRequest('readwrite', store => store.put(historyItems, HISTORY_KEY));
       return true;
     } catch (e) {
       console.error('Unable to save history to IndexedDB:', e);
@@ -1064,13 +1064,13 @@ async function persistHistory() {
   // localStorage fallback: drop the oldest records if storage is full
   while (true) {
     try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(historyItems));
       return true;
     } catch (e) {
-      if (history.length > 1) {
-        history.pop();
-      } else if (history.length === 1 && history[0].image) {
-        history[0].image = ''; // keep the text even if the image doesn't fit
+      if (historyItems.length > 1) {
+        historyItems.pop();
+      } else if (historyItems.length === 1 && historyItems[0].image) {
+        historyItems[0].image = ''; // keep the text even if the image doesn't fit
       } else {
         console.error('Unable to save history:', e);
         return false;
@@ -1090,7 +1090,7 @@ async function requestPersistentStorage() {
     if (navigator.storage?.persist && !(await navigator.storage.persisted())) {
       await navigator.storage.persist();
     }
-  } catch (_) { /* not supported */ }
+  } catch { /* not supported */ }
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1101,7 +1101,7 @@ async function requestPersistentStorage() {
   try {
     if (localStorage.getItem('home_screen_tip_shown')) return;
     localStorage.setItem('home_screen_tip_shown', '1');
-  } catch (_) { return; }
+  } catch { return; }
 
   // Wait for the "Translation completed!" toast to finish first
   setTimeout(() => {
@@ -1117,12 +1117,12 @@ async function requestPersistentStorage() {
 function loadHistory() {
   elements.historyList.innerHTML = '';
   
-  if (history.length === 0) {
+  if (historyItems.length === 0) {
     elements.historyList.innerHTML = '<div class="empty-history">No translation history yet.</div>';
     return;
   }
 
-  history.forEach(item => {
+  historyItems.forEach(item => {
     const itemEl = document.createElement('div');
     itemEl.className = 'history-item';
     itemEl.innerHTML = `
@@ -1150,7 +1150,7 @@ function formatHistoryDate(date) {
 
 // Load clicked history item into main view
 function loadHistoryItem(id) {
-  const item = history.find(h => h.id === id);
+  const item = historyItems.find(h => h.id === id);
   if (!item) return;
 
   currentHistoryId = item.id;
@@ -1180,7 +1180,7 @@ function loadHistoryItem(id) {
 // Delete specific history record
 function deleteHistoryItem(id) {
   if (id === currentHistoryId) currentHistoryId = null;
-  history = history.filter(h => h.id !== id);
+  historyItems = historyItems.filter(h => h.id !== id);
   persistHistory();
   loadHistory();
   showToast('Record deleted.');
@@ -1287,7 +1287,7 @@ function adjustTextareaHeight(textarea) {
 function hasAcceptedPolicies() {
   try {
     return localStorage.getItem('policies_accepted') === POLICY_VERSION;
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -1319,7 +1319,7 @@ function readSavedTheme() {
   try {
     const t = localStorage.getItem('theme');
     return t === 'dark' || t === 'light' ? t : null;
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -1338,7 +1338,7 @@ function applyTheme(theme) {
 // An explicit choice is remembered and overrides the system setting from then on
 function toggleTheme() {
   SAVED_THEME = currentTheme() === 'dark' ? 'light' : 'dark';
-  try { localStorage.setItem('theme', SAVED_THEME); } catch (_) { /* storage unavailable */ }
+  try { localStorage.setItem('theme', SAVED_THEME); } catch { /* storage unavailable */ }
   applyTheme(SAVED_THEME);
 }
 
