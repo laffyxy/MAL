@@ -5,57 +5,60 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-secondary);
+  min-height: 44px;
+  color: var(--text-primary);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: var(--transition-smooth);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 @media (hover: hover) {
   .page-header .back-link:hover {
-    color: var(--accent-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 }
 
 .page-header .back-link svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .page-card {
-  background: var(--bg-card);
-  backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border-color);
-  border-radius: 20px;
-  box-shadow: var(--shadow-lg);
-  padding: 24px 20px;
-  line-height: 1.65;
+  padding: 8px 0;
+  line-height: 1.7;
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.97rem;
 }
 
 .page-card h2 {
-  font-family: 'Outfit', sans-serif;
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 800;
+  line-height: 1;
   color: var(--text-primary);
-  letter-spacing: -0.02em;
-  margin-bottom: 4px;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
 }
 
 .page-card .updated {
   font-size: 0.8rem;
   color: var(--text-muted);
+  padding-bottom: 20px;
   margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .page-card h3 {
-  font-family: 'Outfit', sans-serif;
-  font-size: 1.1rem;
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--text-primary);
-  margin: 24px 0 8px;
+  margin: 32px 0 10px;
 }
 
 .page-card p + p {
@@ -76,14 +79,16 @@
 }
 
 .page-card a {
-  color: var(--accent-primary);
-  text-decoration: none;
+  color: var(--text-primary);
   font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--dot-color);
 }
 
 @media (hover: hover) {
   .page-card a:hover {
-    text-decoration: underline;
+    text-decoration-color: currentColor;
   }
 }
 
@@ -91,35 +96,39 @@
   font-size: 0.85em;
   background: var(--bg-text-box);
   border: 1px solid var(--border-text-box);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 1px 6px;
 }
 
 .page-card .callout {
   margin-top: 16px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--gradient-glow);
-  border: 1px solid var(--border-color);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  border-left: 2px solid var(--text-primary);
   color: var(--text-primary);
 }
 
 .btn-danger {
   margin-top: 12px;
+  min-height: 44px;
   padding: 10px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   border: 1px solid var(--border-warning);
-  background: rgba(239, 68, 68, 0.08);
+  background: transparent;
   color: var(--text-warning);
   font: inherit;
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
   transition: var(--transition-smooth);
 }
 
 @media (hover: hover) {
   .btn-danger:hover {
-    background: rgba(239, 68, 68, 0.16);
+    border-color: var(--danger);
   }
 }
 
@@ -129,8 +138,10 @@
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 6px 16px;
-  padding: 8px 16px 4px;
+  gap: 6px 20px;
+  margin-top: 16px;
+  padding: 20px 0 4px;
+  border-top: 1px solid var(--border-color);
   font-size: 0.8rem;
   color: var(--text-muted);
 }
@@ -142,17 +153,19 @@
 }
 
 .site-footer a[aria-current="page"] {
-  color: var(--accent-primary);
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @media (hover: hover) {
   .site-footer a:hover {
-    color: var(--accent-primary);
+    color: var(--text-primary);
   }
 }
 
 .site-footer .footer-copy {
   width: 100%;
   text-align: center;
-  margin-top: 2px;
+  margin-top: 4px;
 }
