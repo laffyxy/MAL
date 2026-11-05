@@ -12,7 +12,7 @@
     try {
       const t = localStorage.getItem('theme');
       return t === 'dark' || t === 'light' ? t : null;
-    } catch (e) { return null; }
+    } catch { return null; }
   }
 
   function readTheme() {
@@ -39,7 +39,7 @@
   if (toggleBtn) {
     toggleBtn.addEventListener('click', function () {
       const next = document.documentElement.classList.contains('dark-mode') ? 'light' : 'dark';
-      try { localStorage.setItem('theme', next); } catch (e) { /* storage unavailable */ }
+      try { localStorage.setItem('theme', next); } catch { /* storage unavailable */ }
       applyTheme(next);
     });
   }
@@ -58,7 +58,7 @@
         clearBtn.textContent = 'All local data cleared';
         clearBtn.disabled = true;
         applyTheme(readTheme());
-      } catch (e) {
+      } catch {
         alert('Could not clear storage in this browser.');
       }
     });
