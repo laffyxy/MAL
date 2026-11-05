@@ -1,4 +1,6 @@
-const CACHE_NAME = 'mal-translate-cache-v4';
+// Bump only when the ASSETS list changes. App code (HTML/JS/CSS) is served
+// network-first, so a normal deploy reaches users without touching this.
+const CACHE_NAME = 'mal-translate-cache-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -12,6 +14,9 @@ const ASSETS = [
   './pages.css',
   './pages.js'
 ];
+
+// How long to wait for the network before falling back to the cached copy
+const NETWORK_TIMEOUT_MS = 4000;
 
 // Install Event - Pre-cache Assets
 self.addEventListener('install', (event) => {
@@ -37,33 +42,58 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch Event - Serve Cached Assets when offline
-self.addEventListener('fetch', (event) => {
-  // Only intercept requests for local app files
-  const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          // Return cached asset, fetch updated version in background to refresh cache (stale-while-revalidate)
-          fetch(event.request).then((networkResponse) => {
-            if (networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
-              });
-            }
-          }).catch(() => {/* Ignore network errors offline */});
-          
-          return cachedResponse;
-        }
-        
-        return fetch(event.request);
-      })
-    );
+// App code that must stay fresh after a deploy
+function isAppCode(request, url) {
+  return request.mode === 'navigate' || /\.(html|js|css)$/.test(url.pathname) || url.pathname.endsWith('/');
+}
+
+function putInCache(request, response) {
+  if (response && response.status === 200 && response.type === 'basic') {
+    const copy = response.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
   }
+  return response;
+}
+
+// Network-first: fresh code when online, cached copy when offline or the network is too slow
+function networkFirst(request) {
+  const network = fetch(request, { cache: 'no-cache' }).then((response) => putInCache(request, response));
+
+  const cached = () => caches.match(request, { ignoreSearch: request.mode === 'navigate' })
+    .then((hit) => hit || (request.mode === 'navigate' ? caches.match('./index.html') : undefined));
+
+  const timeout = new Promise((resolve) => {
+    setTimeout(() => cached().then((hit) => { if (hit) resolve(hit); }), NETWORK_TIMEOUT_MS);
+  });
+
+  return Promise.race([
+    network.catch(() => cached().then((hit) => hit || Promise.reject(new Error('Offline and not cached')))),
+    timeout
+  ]);
+}
+
+// Cache-first with background refresh, for static assets (icons, manifest)
+function staleWhileRevalidate(request) {
+  return caches.match(request).then((cachedResponse) => {
+    const network = fetch(request).then((response) => putInCache(request, response));
+    if (cachedResponse) {
+      network.catch(() => {/* Ignore network errors offline */});
+      return cachedResponse;
+    }
+    return network;
+  });
+}
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Only handle GET requests for our own files
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+
+  event.respondWith(isAppCode(request, url) ? networkFirst(request) : staleWhileRevalidate(request));
 });
