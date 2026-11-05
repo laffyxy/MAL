@@ -4,6 +4,7 @@ let CURRENT_MODEL = localStorage.getItem('gemini_model') || 'gemini-3.5-flash';
 let selectedFileBase64 = '';
 let selectedFileMime = '';
 let history = [];
+let currentHistoryId = null; // history record shown in the results, kept in sync on re-translate
 // History lives in IndexedDB (much larger quota than localStorage). localStorage is
 // read here for older installs (migrated on startup) and used as a fallback store.
 const HISTORY_KEY = 'translation_history';
@@ -71,6 +72,8 @@ const elements = {
   malTextarea: document.getElementById('malTextarea'),
   engTextarea: document.getElementById('engTextarea'),
   copyMalBtn: document.getElementById('copyMalBtn'),
+  retranslateBtn: document.getElementById('retranslateBtn'),
+  retranslateBtnText: document.getElementById('retranslateBtnText'),
   copyEngBtn: document.getElementById('copyEngBtn'),
   shareMalBtn: document.getElementById('shareMalBtn'),
   shareEngBtn: document.getElementById('shareEngBtn'),
@@ -239,6 +242,7 @@ function setupEventListeners() {
 
   // Results Actions
   elements.copyMalBtn.addEventListener('click', () => copyToClipboard(elements.malTextarea.value, 'Malayalam text copied!'));
+  elements.retranslateBtn.addEventListener('click', runRetranslation);
   elements.copyEngBtn.addEventListener('click', () => copyToClipboard(elements.engTextarea.value, 'English translation copied!'));
 
   // Web Share (phones and some desktop browsers): send text to WhatsApp, Messages, etc.
@@ -775,9 +779,6 @@ async function runTranslation() {
   // Set Loading UI
   setLoadingState(true);
 
-  // Endpoint
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(CURRENT_MODEL)}:generateContent`;
-  
   // System Instruction / Prompt for OCR & Translation
   const promptText = `
     Analyze this image and perform two tasks:
@@ -787,82 +788,27 @@ async function runTranslation() {
     Put the extracted Malayalam text in "ocr" and the English translation in "translation".
   `;
 
-  const requestBody = {
-    contents: [
-      {
-        parts: [
-          { text: promptText },
-          {
-            inlineData: {
-              mimeType: selectedFileMime,
-              data: selectedFileBase64
-            }
-          }
-        ]
-      }
-    ],
-    generationConfig: {
-      // Structured output: Gemini returns raw JSON matching this schema, no fences or filler
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: "OBJECT",
-        properties: {
-          ocr: { type: "STRING", description: "Malayalam text extracted from the image, preserving layout and spelling" },
-          translation: { type: "STRING", description: "Clear, contextually accurate English translation of the extracted text" }
-        },
-        required: ["ocr", "translation"],
-        propertyOrdering: ["ocr", "translation"]
+  const parts = [
+    { text: promptText },
+    {
+      inlineData: {
+        mimeType: selectedFileMime,
+        data: selectedFileBase64
       }
     }
+  ];
+  const schema = {
+    type: "OBJECT",
+    properties: {
+      ocr: { type: "STRING", description: "Malayalam text extracted from the image, preserving layout and spelling" },
+      translation: { type: "STRING", description: "Clear, contextually accurate English translation of the extracted text" }
+    },
+    required: ["ocr", "translation"],
+    propertyOrdering: ["ocr", "translation"]
   };
 
   try {
-    let response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': API_KEY
-        },
-        body: JSON.stringify(requestBody)
-      });
-    } catch (_) {
-      // fetch only rejects when the request never got a response (offline, DNS, blocked)
-      throw new Error(navigator.onLine
-        ? "Couldn't reach Gemini. Check your connection or any ad/content blocker and try again."
-        : "You're offline. Connect to the internet and try again.");
-    }
-
-    if (!response.ok) {
-      let message = `API request failed (HTTP ${response.status})`;
-      try {
-        const errorData = await response.json();
-        if (errorData.error?.message) message = errorData.error.message;
-      } catch (_) { /* non-JSON error body */ }
-      throw new Error(message);
-    }
-
-    const result = await response.json();
-    
-    // Parse response
-    const candidate = result.candidates?.[0];
-    const textResponse = (candidate?.content?.parts || [])
-      .filter(part => typeof part.text === 'string' && !part.thought)
-      .map(part => part.text)
-      .join('')
-      .trim();
-    if (!textResponse) {
-      const reason = candidate?.finishReason || result.promptFeedback?.blockReason;
-      throw new Error(reason ? `No content returned from Gemini (${reason}).` : 'No content returned from Gemini.');
-    }
-
-    let data;
-    try {
-      data = JSON.parse(textResponse);
-    } catch (_) {
-      throw new Error('Gemini returned a response that could not be parsed.');
-    }
+    const data = await callGemini(parts, schema);
 
     if (!data || (!data.ocr && !data.translation)) {
       throw new Error('Failed to parse text or translation.');
@@ -895,6 +841,135 @@ async function runTranslation() {
   }
 }
 
+// Send a generateContent request and return the structured JSON that matches `schema`
+async function callGemini(parts, schema) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(CURRENT_MODEL)}:generateContent`;
+  const requestBody = {
+    contents: [{ parts }],
+    generationConfig: {
+      // Structured output: Gemini returns raw JSON matching this schema, no fences or filler
+      responseMimeType: "application/json",
+      responseSchema: schema
+    }
+  };
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': API_KEY
+      },
+      body: JSON.stringify(requestBody)
+    });
+  } catch (_) {
+    // fetch only rejects when the request never got a response (offline, DNS, blocked)
+    throw new Error(navigator.onLine
+      ? "Couldn't reach Gemini. Check your connection or any ad/content blocker and try again."
+      : "You're offline. Connect to the internet and try again.");
+  }
+
+  if (!response.ok) {
+    let message = `API request failed (HTTP ${response.status})`;
+    try {
+      const errorData = await response.json();
+      if (errorData.error?.message) message = errorData.error.message;
+    } catch (_) { /* non-JSON error body */ }
+    throw new Error(message);
+  }
+
+  const result = await response.json();
+
+  const candidate = result.candidates?.[0];
+  const textResponse = (candidate?.content?.parts || [])
+    .filter(part => typeof part.text === 'string' && !part.thought)
+    .map(part => part.text)
+    .join('')
+    .trim();
+  if (!textResponse) {
+    const reason = candidate?.finishReason || result.promptFeedback?.blockReason;
+    throw new Error(reason ? `No content returned from Gemini (${reason}).` : 'No content returned from Gemini.');
+  }
+
+  try {
+    return JSON.parse(textResponse);
+  } catch (_) {
+    throw new Error('Gemini returned a response that could not be parsed.');
+  }
+}
+
+// Translate the (possibly hand-corrected) Malayalam text again, without re-sending the image
+async function runRetranslation() {
+  const malayalam = elements.malTextarea.value.trim();
+  if (!malayalam) {
+    showToast('There is no Malayalam text to translate.', { type: 'error' });
+    return;
+  }
+  if (!API_KEY) {
+    showToast('Please configure your Gemini API Key first.', { type: 'error' });
+    openSettings();
+    return;
+  }
+  if (!navigator.onLine) {
+    showToast("You're offline. Connect to the internet and try again.", { type: 'error' });
+    return;
+  }
+
+  const promptText = `
+    Translate the following Malayalam text into clear, contextually accurate English.
+    The text may have been corrected by hand after OCR; translate it exactly as given.
+    Put the English translation in "translation".
+
+    Malayalam text:
+    ${malayalam}
+  `;
+  const schema = {
+    type: "OBJECT",
+    properties: {
+      translation: { type: "STRING", description: "Clear, contextually accurate English translation of the given Malayalam text" }
+    },
+    required: ["translation"]
+  };
+
+  setRetranslateLoading(true);
+  try {
+    const data = await callGemini([{ text: promptText }], schema);
+    const translation = String(data?.translation ?? '');
+    if (!translation) throw new Error('Failed to parse translation.');
+
+    elements.engTextarea.value = translation;
+    adjustTextareaHeight(elements.engTextarea);
+    showToast('Re-translated edited text!');
+
+    // Keep the history record this text came from in sync with the correction
+    updateCurrentHistoryRecord(elements.malTextarea.value, translation)
+      .catch(e => console.error('Unable to update history:', e));
+  } catch (err) {
+    console.error('Re-translation error:', err);
+    showToast(`Error: ${err.message || 'Something went wrong'}`, { type: 'error' });
+  } finally {
+    setRetranslateLoading(false);
+  }
+}
+
+function setRetranslateLoading(isLoading) {
+  elements.retranslateBtn.disabled = isLoading;
+  elements.retranslateBtn.setAttribute('aria-busy', String(isLoading));
+  elements.retranslateBtnText.textContent = isLoading ? 'Translating…' : 'Re-translate';
+}
+
+async function updateCurrentHistoryRecord(ocrText, translationText) {
+  await historyReady;
+  const record = currentHistoryId && history.find(h => h.id === currentHistoryId);
+  if (!record) return;
+  record.ocr = ocrText;
+  record.translation = translationText;
+  const saved = await persistHistory();
+  loadHistory();
+  if (!saved) showToast("Re-translated, but history couldn't be updated.", { type: 'error' });
+}
+
 // Toggle Loading Spinner
 function setLoadingState(isLoading) {
   if (isLoading) {
@@ -920,6 +995,7 @@ async function saveToHistory(ocrText, translationText, imageSrc) {
   };
 
   history.unshift(record); // Add to beginning
+  currentHistoryId = record.id;
   if (history.length > HISTORY_LIMIT) {
     history.length = HISTORY_LIMIT;
   }
@@ -1079,6 +1155,7 @@ function loadHistoryItem(id) {
   const item = history.find(h => h.id === id);
   if (!item) return;
 
+  currentHistoryId = item.id;
   elements.malTextarea.value = item.ocr || '';
   elements.engTextarea.value = item.translation || '';
 
@@ -1104,6 +1181,7 @@ function loadHistoryItem(id) {
 
 // Delete specific history record
 function deleteHistoryItem(id) {
+  if (id === currentHistoryId) currentHistoryId = null;
   history = history.filter(h => h.id !== id);
   persistHistory();
   loadHistory();
