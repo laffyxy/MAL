@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About – MalTranslate</title>
+  <meta name="description" content="About MalTranslate, a Malayalam OCR and English translation app powered by Google Gemini.">
+  <meta name="theme-color" content="#7c3aed">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="pages.css">
+</head>
+<body>
+  <div class="ambient-glow-1"></div>
+
+  <div class="app-container">
+    <header class="page-header">
+      <a class="back-link" href="index.html">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+        Back to app
+      </a>
+      <button class="icon-btn" id="themeToggleBtn" aria-label="Toggle Theme" title="Toggle Light/Dark Mode"></button>
+    </header>
+
+    <main class="page-card">
+      <h2>About MalTranslate</h2>
+      <p class="updated">Malayalam OCR &amp; English translation, in your browser</p>
+
+      <p>MalTranslate reads Malayalam text from a photo or image and translates it into clear, natural English. Snap a sign, a page from a book, a menu or a handwritten note, and get both the Malayalam text and its English meaning in seconds.</p>
+
+      <h3>How it works</h3>
+      <ul>
+        <li><strong>Capture:</strong> upload an image, drag one in, or take a photo with your camera.</li>
+        <li><strong>Extract:</strong> the image is sent to Google's Gemini model, which reads the Malayalam text while keeping its layout.</li>
+        <li><strong>Translate:</strong> Gemini then produces a context-aware English translation.</li>
+        <li><strong>Keep:</strong> your 15 most recent results are saved in your browser so you can come back to them.</li>
+      </ul>
+
+      <h3>Bring your own key</h3>
+      <p>MalTranslate has no servers and no accounts. It talks to the Gemini API directly from your browser using your own free API key from <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>. Your key stays on your device. See the <a href="privacy.html">Privacy Policy</a> for details.</p>
+
+      <h3>Install it</h3>
+      <p>MalTranslate is a Progressive Web App. Add it to your home screen on Android or iOS, or install it from the address bar on desktop, and it will open like a native app, even with a spotty connection (translation itself needs internet).</p>
+
+      <h3>Open source</h3>
+      <p>MalTranslate is built with plain HTML, CSS and JavaScript. The source code is on <a href="https://github.com/laffyxy/MAL" target="_blank" rel="noopener">GitHub</a>.</p>
+
+      <h3>Reporting bugs</h3>
+      <p>Bug reports are accepted <strong>only through <a href="https://github.com/laffyxy/MAL/issues" target="_blank" rel="noopener">GitHub Issues</a></strong>. Reports sent any other way may not be seen. Before opening a new issue, please check whether it has already been reported.</p>
+      <p>A helpful report includes:</p>
+      <ul>
+        <li>what you did and what you expected to happen;</li>
+        <li>what actually happened, including any error message shown;</li>
+        <li>your device, browser and the Gemini model you selected.</li>
+      </ul>
+      <p class="callout">Please <strong>never</strong> include your API key in an issue, and don't attach images that contain private information. Issues are public.</p>
+      <p style="margin-top: 16px;"><a href="https://github.com/laffyxy/MAL/issues/new" target="_blank" rel="noopener">Report a bug on GitHub &rarr;</a></p>
+    </main>
+
+    <footer class="site-footer">
+      <a href="index.html">Home</a>
+      <a href="about.html" aria-current="page">About</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="https://github.com/laffyxy/MAL/issues" target="_blank" rel="noopener">Report a bug</a>
+      <span class="footer-copy">&copy; <span id="footerYear">2026</span> MalTranslate</span>
+    </footer>
+  </div>
+
+  <script src="pages.js"></script>
+</body>
+</html>

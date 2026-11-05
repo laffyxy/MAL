@@ -1,11 +1,16 @@
-const CACHE_NAME = 'mal-translate-cache-v1';
+const CACHE_NAME = 'mal-translate-cache-v3';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './about.html',
+  './privacy.html',
+  './terms.html',
+  './pages.css',
+  './pages.js'
 ];
 
 // Install Event - Pre-cache Assets

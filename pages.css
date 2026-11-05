@@ -1,0 +1,147 @@
+/* Shared styles for the static info pages (About, Privacy, Terms).
+   Builds on the design tokens defined in style.css. */
+
+.page-header .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: var(--transition-smooth);
+}
+
+.page-header .back-link:hover {
+  color: var(--accent-primary);
+}
+
+.page-header .back-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.page-card {
+  background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  padding: 24px 20px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.page-card h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.page-card .updated {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.page-card h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 24px 0 8px;
+}
+
+.page-card p + p {
+  margin-top: 10px;
+}
+
+.page-card ul {
+  margin: 8px 0 0 20px;
+}
+
+.page-card li + li {
+  margin-top: 6px;
+}
+
+.page-card strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.page-card a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.page-card a:hover {
+  text-decoration: underline;
+}
+
+.page-card code {
+  font-size: 0.85em;
+  background: var(--bg-text-box);
+  border: 1px solid var(--border-text-box);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
+.page-card .callout {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--gradient-glow);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-warning);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--text-warning);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+
+/* Footer (used on the main app and info pages) */
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 8px 16px 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.site-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: var(--transition-smooth);
+}
+
+.site-footer a:hover,
+.site-footer a[aria-current="page"] {
+  color: var(--accent-primary);
+}
+
+.site-footer .footer-copy {
+  width: 100%;
+  text-align: center;
+  margin-top: 2px;
+}
