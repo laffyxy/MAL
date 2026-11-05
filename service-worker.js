@@ -1,6 +1,6 @@
 // Bump only when the ASSETS list changes. App code (HTML/JS/CSS) is served
 // network-first, so a normal deploy reaches users without touching this.
-const CACHE_NAME = 'mal-translate-cache-v5';
+const CACHE_NAME = 'mal-translate-cache-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,11 @@ const ASSETS = [
   './app.js',
   './manifest.json',
   './icon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable-192.png',
+  './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon.png',
   './about.html',
   './privacy.html',
   './terms.html',
@@ -36,7 +41,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME && key !== FONT_CACHE) {
+          if (key !== CACHE_NAME && key !== FONT_CACHE && key !== SHARE_CACHE) {
             console.log('[Service Worker] Removing old cache:', key);
             return caches.delete(key);
           }
@@ -112,9 +117,36 @@ function fontCacheFirst(request) {
   );
 }
 
+// Web Share Target (manifest.json "share_target"): Android shares an image here as a
+// multipart POST. Stash the file, then send the app to index.html to pick it up.
+const SHARE_CACHE = 'mal-translate-share';
+const SHARE_PATH = new URL('./share-target', self.location).pathname;
+const SHARED_IMAGE_URL = new URL('./shared-image', self.location).href;
+
+async function handleShareTarget(request) {
+  try {
+    const formData = await request.formData();
+    const file = formData.getAll('image').find((f) => f && typeof f !== 'string' && f.size > 0);
+    if (file) {
+      const cache = await caches.open(SHARE_CACHE);
+      await cache.put(SHARED_IMAGE_URL, new Response(file, {
+        headers: { 'Content-Type': file.type || 'application/octet-stream' }
+      }));
+    }
+  } catch (err) {
+    console.error('[Service Worker] Could not read shared image:', err);
+  }
+  return Response.redirect('./index.html?shared=1', 303);
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  if (request.method === 'POST' && url.origin === self.location.origin && url.pathname === SHARE_PATH) {
+    event.respondWith(handleShareTarget(request));
+    return;
+  }
 
   if (request.method === 'GET' && FONT_ORIGINS.includes(url.origin)) {
     event.respondWith(fontCacheFirst(request));

@@ -17,7 +17,16 @@ try {
   console.warn('Discarding corrupt translation history:', e);
 }
 let activeStream = null;
-let CURRENT_THEME = localStorage.getItem('theme') || 'light';
+// Full-resolution decoded copy of the current picture, plus the user's crop/rotation.
+// Edits are always re-applied to this original so cropping keeps as much detail as possible.
+let sourceImage = null;
+let imageEdit = { rotation: 0, crop: null }; // crop: {x, y, w, h} as 0-1 fractions of the rotated image
+const MAX_UPLOAD_DIM = 1200;
+
+// Theme: an explicit choice is saved; otherwise follow the system setting
+const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const THEME_COLORS = { light: '#f8fafc', dark: '#07080d' }; // match --bg-primary
+let SAVED_THEME = readSavedTheme(); // 'light' | 'dark' | null
 
 // Bump this when the Privacy Policy or Terms change to ask users to accept again
 const POLICY_VERSION = '2026-11-05';
@@ -44,6 +53,7 @@ const elements = {
   previewContainer: document.getElementById('previewContainer'),
   previewImg: document.getElementById('previewImg'),
   clearPreviewBtn: document.getElementById('clearPreviewBtn'),
+  editPreviewBtn: document.getElementById('editPreviewBtn'),
   cameraBtn: document.getElementById('cameraBtn'),
   translateBtn: document.getElementById('translateBtn'),
   translateBtnText: document.getElementById('translateBtnText'),
@@ -62,6 +72,19 @@ const elements = {
   engTextarea: document.getElementById('engTextarea'),
   copyMalBtn: document.getElementById('copyMalBtn'),
   copyEngBtn: document.getElementById('copyEngBtn'),
+  shareMalBtn: document.getElementById('shareMalBtn'),
+  shareEngBtn: document.getElementById('shareEngBtn'),
+
+  // Crop editor
+  cropOverlay: document.getElementById('cropOverlay'),
+  cropStage: document.getElementById('cropStage'),
+  cropCanvas: document.getElementById('cropCanvas'),
+  cropBox: document.getElementById('cropBox'),
+  cropCancelBtn: document.getElementById('cropCancelBtn'),
+  cropDoneBtn: document.getElementById('cropDoneBtn'),
+  cropResetBtn: document.getElementById('cropResetBtn'),
+  cropRotateLeftBtn: document.getElementById('cropRotateLeftBtn'),
+  cropRotateRightBtn: document.getElementById('cropRotateRightBtn'),
 
   // History
   historyHeader: document.getElementById('historyHeader'),
@@ -103,8 +126,11 @@ function init() {
     });
   }
 
-  // Apply default or stored theme
-  applyTheme(CURRENT_THEME);
+  // Apply the saved theme, or follow the system one until the user picks
+  applyTheme(currentTheme());
+  const onSystemThemeChange = () => { if (!SAVED_THEME) applyTheme(currentTheme()); };
+  if (systemDarkQuery.addEventListener) systemDarkQuery.addEventListener('change', onSystemThemeChange);
+  else if (systemDarkQuery.addListener) systemDarkQuery.addListener(onSystemThemeChange); // Safari < 14
 
   checkConsent();
   checkApiKey();
@@ -115,6 +141,9 @@ function init() {
   // Set initial settings inputs
   elements.apiKeyInput.value = API_KEY;
   elements.modelSelect.value = CURRENT_MODEL;
+
+  // Opened from the Android share sheet (manifest share_target -> service worker)
+  receiveSharedImage();
 }
 
 // Event Listeners
@@ -167,6 +196,26 @@ function setupEventListeners() {
 
   // Preview Actions
   elements.clearPreviewBtn.addEventListener('click', clearPreview);
+  elements.editPreviewBtn.addEventListener('click', openCropEditor);
+
+  // Crop editor
+  elements.cropCancelBtn.addEventListener('click', () => closeCropEditor(false));
+  elements.cropDoneBtn.addEventListener('click', () => closeCropEditor(true));
+  elements.cropResetBtn.addEventListener('click', resetCrop);
+  elements.cropRotateLeftBtn.addEventListener('click', () => rotateCrop(-90));
+  elements.cropRotateRightBtn.addEventListener('click', () => rotateCrop(90));
+  elements.cropBox.addEventListener('pointerdown', startCropDrag);
+  elements.cropBox.addEventListener('pointermove', moveCropDrag);
+  elements.cropBox.addEventListener('pointerup', endCropDrag);
+  elements.cropBox.addEventListener('pointercancel', endCropDrag);
+  elements.cropBox.addEventListener('keydown', handleCropBoxKeydown);
+  elements.cropOverlay.addEventListener('keydown', handleCropOverlayKeydown);
+  window.addEventListener('resize', () => {
+    if (elements.cropOverlay.classList.contains('open')) drawCropEditor();
+  });
+
+  // Paste an image (Ctrl+V / Cmd+V)
+  document.addEventListener('paste', handlePaste);
 
   // Camera Actions
   elements.cameraBtn.addEventListener('click', () => {
@@ -191,6 +240,14 @@ function setupEventListeners() {
   // Results Actions
   elements.copyMalBtn.addEventListener('click', () => copyToClipboard(elements.malTextarea.value, 'Malayalam text copied!'));
   elements.copyEngBtn.addEventListener('click', () => copyToClipboard(elements.engTextarea.value, 'English translation copied!'));
+
+  // Web Share (phones and some desktop browsers): send text to WhatsApp, Messages, etc.
+  if (navigator.share) {
+    elements.shareMalBtn.hidden = false;
+    elements.shareEngBtn.hidden = false;
+    elements.shareMalBtn.addEventListener('click', () => shareText(elements.malTextarea.value));
+    elements.shareEngBtn.addEventListener('click', () => shareText(elements.engTextarea.value));
+  }
 
   // Auto-resize results on user input
   elements.malTextarea.addEventListener('input', () => adjustTextareaHeight(elements.malTextarea));
@@ -250,8 +307,13 @@ function handleSettingsKeydown(e) {
     closeSettings();
     return;
   }
+  trapFocus(elements.settingsModal, e);
+}
+
+// Keep Tab / Shift+Tab inside a dialog
+function trapFocus(container, e) {
   if (e.key !== 'Tab') return;
-  const focusable = [...elements.settingsModal.querySelectorAll(
+  const focusable = [...container.querySelectorAll(
     'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
   )].filter(el => el.offsetParent !== null);
   if (!focusable.length) return;
@@ -300,78 +362,306 @@ function handleFileSelect(event) {
   }
 }
 
-// Process selected file (compress and display preview)
+// Process selected file: decode it, keep the original for cropping, then show a compressed preview.
+// Resolves to true once the image is ready to translate.
 function processFile(file) {
-  if (!file.type.startsWith('image/')) {
+  if (!file || !file.type.startsWith('image/')) {
     showToast('Please upload an image file.', { type: 'error' });
-    return;
+    return Promise.resolve(false);
   }
 
-  selectedFileMime = file.type;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const img = new Image();
-    img.onload = function() {
-      // Compress image slightly if it is massive to optimize network request
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-      
-      const MAX_WIDTH = 1200;
-      const MAX_HEIGHT = 1200;
-      
-      if (width > height) {
-        if (width > MAX_WIDTH) {
-          height *= MAX_WIDTH / width;
-          width = MAX_WIDTH;
-        }
-      } else {
-        if (height > MAX_HEIGHT) {
-          width *= MAX_HEIGHT / height;
-          height = MAX_HEIGHT;
-        }
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      // JPEG has no alpha channel: paint white first so transparent PNGs don't turn black
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      // Get base64 string
-      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
-      selectedFileBase64 = compressedBase64.split(',')[1];
-      selectedFileMime = 'image/jpeg';
-      
-      // Update UI
-      elements.previewImg.src = compressedBase64;
-      elements.dropzone.style.display = 'none';
-      elements.previewContainer.style.display = 'block';
-      elements.translateBtn.disabled = false;
-    };
-    img.onerror = function() {
+  const url = URL.createObjectURL(file);
+  return loadImage(url)
+    .then(img => {
+      sourceImage = img;
+      imageEdit = { rotation: 0, crop: null };
+      renderSelection();
+      return true;
+    })
+    .catch(() => {
       showToast('Could not read this image. Try a different file.', { type: 'error' });
-    };
-    img.src = e.target.result;
-  };
-  reader.onerror = function() {
-    showToast('Failed to read the selected file.', { type: 'error' });
-  };
-  reader.readAsDataURL(file);
+      return false;
+    })
+    .finally(() => URL.revokeObjectURL(url)); // the decoded image stays usable
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Image failed to load'));
+    img.src = src;
+  });
+}
+
+// Size of the image after rotation
+function rotatedSize(img, rotation) {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  return rotation % 180 === 0 ? { width: w, height: h } : { width: h, height: w };
+}
+
+// Draw `img` rotated (0/90/180/270 degrees clockwise), cropped and scaled onto a new canvas.
+// The rotation is a canvas transform, so there is no full-size intermediate canvas
+// (iOS limits canvas area, and phone photos can be 48 MP).
+function renderImage(img, { rotation = 0, crop = null } = {}, scale = 1) {
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const rs = rotatedSize(img, rotation);
+  const c = crop || { x: 0, y: 0, w: 1, h: 1 };
+  const cx = c.x * rs.width, cy = c.y * rs.height;
+  const cw = c.w * rs.width, ch = c.h * rs.height;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(cw * scale));
+  canvas.height = Math.max(1, Math.round(ch * scale));
+  const ctx = canvas.getContext('2d');
+  // JPEG has no alpha channel: paint white first so transparent PNGs don't turn black
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.scale(scale, scale);
+  ctx.translate(-cx, -cy);
+  if (rotation === 90) { ctx.translate(h, 0); ctx.rotate(Math.PI / 2); }
+  else if (rotation === 180) { ctx.translate(w, h); ctx.rotate(Math.PI); }
+  else if (rotation === 270) { ctx.translate(0, w); ctx.rotate(-Math.PI / 2); }
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas;
+}
+
+// Apply the current crop/rotation to the original and update the preview and upload data
+function renderSelection() {
+  const rs = rotatedSize(sourceImage, imageEdit.rotation);
+  const c = imageEdit.crop || { w: 1, h: 1 };
+  const longest = Math.max(c.w * rs.width, c.h * rs.height);
+  // Downscale large photos to keep the request small
+  const scale = Math.min(1, MAX_UPLOAD_DIM / longest);
+  const dataUrl = renderImage(sourceImage, imageEdit, scale).toDataURL('image/jpeg', 0.85);
+
+  selectedFileBase64 = dataUrl.split(',')[1];
+  selectedFileMime = 'image/jpeg';
+  showPreview(dataUrl);
+}
+
+function showPreview(src) {
+  elements.previewImg.src = src;
+  elements.dropzone.style.display = 'none';
+  elements.previewContainer.style.display = 'block';
+  elements.translateBtn.disabled = !selectedFileBase64;
 }
 
 // Clear Image Preview
 function clearPreview() {
   selectedFileBase64 = '';
   selectedFileMime = '';
-  elements.previewImg.src = '';
+  sourceImage = null;
+  imageEdit = { rotation: 0, crop: null };
+  elements.previewImg.removeAttribute('src');
   elements.previewContainer.style.display = 'none';
   elements.dropzone.style.display = 'flex';
   elements.translateBtn.disabled = true;
   elements.fileInput.value = '';
+}
+
+// ---- Crop / rotate editor ----
+const FULL_CROP = { x: 0, y: 0, w: 1, h: 1 };
+const MIN_CROP_PX = 48; // smallest crop box on screen, in CSS pixels
+let cropState = null;   // { rotation, crop } while the editor is open
+let cropDrag = null;
+let cropReturnFocus = null;
+
+async function openCropEditor() {
+  if (!sourceImage) {
+    // e.g. a picture reopened from history: edit the stored copy
+    if (!elements.previewImg.getAttribute('src')) return;
+    try {
+      sourceImage = await loadImage(elements.previewImg.src);
+      imageEdit = { rotation: 0, crop: null };
+    } catch (_) {
+      showToast('This image cannot be edited.', { type: 'error' });
+      return;
+    }
+  }
+  cropState = { rotation: imageEdit.rotation, crop: { ...(imageEdit.crop || FULL_CROP) } };
+  cropReturnFocus = document.activeElement;
+  elements.cropOverlay.classList.add('open');
+  drawCropEditor();
+  elements.cropBox.focus();
+}
+
+function closeCropEditor(apply) {
+  if (apply && cropState) {
+    const c = cropState.crop;
+    const isFull = c.x <= 0.001 && c.y <= 0.001 && c.w >= 0.999 && c.h >= 0.999;
+    imageEdit = { rotation: cropState.rotation, crop: isFull ? null : c };
+    renderSelection();
+  }
+  cropState = null;
+  cropDrag = null;
+  elements.cropOverlay.classList.remove('open');
+  if (cropReturnFocus && document.contains(cropReturnFocus)) cropReturnFocus.focus();
+  cropReturnFocus = null;
+}
+
+// Render the rotated image to fit the stage, then place the crop box over it
+function drawCropEditor() {
+  if (!cropState) return;
+  const stage = elements.cropStage;
+  const styles = getComputedStyle(stage);
+  const availW = stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+  const availH = stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
+  const rs = rotatedSize(sourceImage, cropState.rotation);
+  const fit = Math.min(availW / rs.width, availH / rs.height);
+  const cssW = Math.max(1, Math.floor(rs.width * fit));
+  const cssH = Math.max(1, Math.floor(rs.height * fit));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const rendered = renderImage(sourceImage, { rotation: cropState.rotation }, Math.min(1, fit * dpr));
+  const canvas = elements.cropCanvas;
+  canvas.width = rendered.width;
+  canvas.height = rendered.height;
+  canvas.getContext('2d').drawImage(rendered, 0, 0);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  positionCropBox();
+}
+
+function positionCropBox() {
+  const { crop } = cropState;
+  const box = elements.cropBox.style;
+  box.left = (crop.x * 100) + '%';
+  box.top = (crop.y * 100) + '%';
+  box.width = (crop.w * 100) + '%';
+  box.height = (crop.h * 100) + '%';
+}
+
+function resetCrop() {
+  cropState = { rotation: 0, crop: { ...FULL_CROP } };
+  drawCropEditor();
+}
+
+// Rotate by +/-90 degrees and carry the crop box along with the picture
+function rotateCrop(delta) {
+  const { x, y, w, h } = cropState.crop;
+  cropState.crop = delta > 0
+    ? { x: 1 - (y + h), y: x, w: h, h: w }
+    : { x: y, y: 1 - (x + w), w: h, h: w };
+  cropState.rotation = (cropState.rotation + delta + 360) % 360;
+  drawCropEditor();
+}
+
+function clamp(v, min, max) {
+  return Math.min(max, Math.max(min, v));
+}
+
+// Move edges of the crop box, keeping it inside the image and above a minimum size
+function setCropEdges(start, handle, dx, dy) {
+  const rect = elements.cropCanvas.getBoundingClientRect();
+  const minW = Math.min(1, MIN_CROP_PX / rect.width);
+  const minH = Math.min(1, MIN_CROP_PX / rect.height);
+  let left = start.x, top = start.y, right = start.x + start.w, bottom = start.y + start.h;
+
+  if (handle === 'move') {
+    left = clamp(start.x + dx, 0, 1 - start.w);
+    top = clamp(start.y + dy, 0, 1 - start.h);
+    right = left + start.w;
+    bottom = top + start.h;
+  } else {
+    if (handle.includes('w')) left = clamp(left + dx, 0, right - minW);
+    if (handle.includes('e')) right = clamp(right + dx, left + minW, 1);
+    if (handle.includes('n')) top = clamp(top + dy, 0, bottom - minH);
+    if (handle.includes('s')) bottom = clamp(bottom + dy, top + minH, 1);
+  }
+  cropState.crop = { x: left, y: top, w: right - left, h: bottom - top };
+  positionCropBox();
+}
+
+function startCropDrag(e) {
+  if (!cropState || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  const handleEl = e.target.closest('.crop-handle');
+  cropDrag = {
+    id: e.pointerId,
+    handle: handleEl ? handleEl.dataset.handle : 'move',
+    startX: e.clientX,
+    startY: e.clientY,
+    start: { ...cropState.crop }
+  };
+  elements.cropBox.setPointerCapture(e.pointerId);
+  elements.cropBox.focus();
+}
+
+function moveCropDrag(e) {
+  if (!cropDrag || e.pointerId !== cropDrag.id) return;
+  const rect = elements.cropCanvas.getBoundingClientRect();
+  setCropEdges(cropDrag.start, cropDrag.handle,
+    (e.clientX - cropDrag.startX) / rect.width,
+    (e.clientY - cropDrag.startY) / rect.height);
+}
+
+function endCropDrag(e) {
+  if (cropDrag && e.pointerId === cropDrag.id) cropDrag = null;
+}
+
+// Arrow keys move the crop box; Shift + arrows resize it from the bottom-right corner
+function handleCropBoxKeydown(e) {
+  const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+  if (!step || !cropState) return;
+  e.preventDefault();
+  const amount = 0.02;
+  setCropEdges({ ...cropState.crop }, e.shiftKey ? 'se' : 'move', step[0] * amount, step[1] * amount);
+}
+
+function handleCropOverlayKeydown(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeCropEditor(false);
+    return;
+  }
+  trapFocus(elements.cropOverlay, e);
+}
+
+// Paste an image from the clipboard (desktop)
+function handlePaste(e) {
+  // Not while a dialog is covering the page
+  if (elements.cropOverlay.classList.contains('open') ||
+      elements.consentModal.style.display === 'flex' ||
+      elements.settingsModal.style.display === 'flex' ||
+      elements.cameraOverlay.style.display === 'flex') return;
+
+  const items = [...(e.clipboardData?.items || [])];
+  const item = items.find(i => i.kind === 'file' && i.type.startsWith('image/'));
+  const file = item?.getAsFile();
+  if (!file) return; // plain text paste: leave it alone
+  e.preventDefault();
+  processFile(file).then(ok => { if (ok) showToast('Image pasted!'); });
+}
+
+// Pick up an image shared from another app (see handleShareTarget in service-worker.js)
+async function receiveSharedImage() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('shared')) return;
+  params.delete('shared');
+  const query = params.toString();
+  window.history.replaceState(null, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+
+  if (!('caches' in window)) return;
+  try {
+    const cache = await caches.open('mal-translate-share');
+    const key = new URL('shared-image', window.location.href).href;
+    const response = await cache.match(key);
+    if (!response) {
+      showToast("Couldn't open the shared image. Try sharing it again.", { type: 'error' });
+      return;
+    }
+    const blob = await response.blob();
+    await cache.delete(key);
+    const file = new File([blob], 'shared-image', { type: blob.type || 'image/jpeg' });
+    if (await processFile(file)) showToast('Shared image ready to translate.');
+  } catch (err) {
+    console.error('Could not load shared image:', err);
+    showToast("Couldn't open the shared image. Try sharing it again.", { type: 'error' });
+  }
 }
 
 // Open Camera Stream
@@ -445,8 +735,9 @@ async function captureFrame() {
 
     closeCamera();
     // Same path as uploads: downscale, compress, preview
-    processFile(new File([blob], 'camera.jpg', { type: blob.type || 'image/jpeg' }));
-    showToast('Image captured successfully!');
+    if (await processFile(new File([blob], 'camera.jpg', { type: blob.type || 'image/jpeg' }))) {
+      showToast('Image captured successfully!');
+    }
   } catch (err) {
     console.error('Capture error:', err);
     showToast('Failed to capture the photo. Please try again.', { type: 'error' });
@@ -795,12 +1086,11 @@ function loadHistoryItem(id) {
 
   // Set preview state (older/oversized records may have no stored image)
   if (item.image) {
-    elements.previewImg.src = item.image;
+    sourceImage = null; // decoded from the stored copy only if the user opens the crop editor
+    imageEdit = { rotation: 0, crop: null };
     selectedFileBase64 = item.image.split(',')[1] || '';
     selectedFileMime = 'image/jpeg';
-    elements.dropzone.style.display = 'none';
-    elements.previewContainer.style.display = 'block';
-    elements.translateBtn.disabled = !selectedFileBase64;
+    showPreview(item.image);
   } else {
     clearPreview();
   }
@@ -851,6 +1141,20 @@ function copyToClipboard(text, successMsg) {
     });
 }
 
+// Share text through the system share sheet
+async function shareText(text) {
+  if (!text) {
+    showToast('Nothing to share yet.', { type: 'info' });
+    return;
+  }
+  try {
+    await navigator.share({ title: 'MalTranslate', text });
+  } catch (err) {
+    if (err.name === 'AbortError') return; // user closed the share sheet
+    console.error('Share failed:', err);
+    showToast('Could not open the share menu. Use Copy instead.', { type: 'error' });
+  }
+}
 
 // Toast System
 let toastTimeout;
@@ -937,20 +1241,31 @@ function checkConsent() {
 }
 
 // Theme Management Functions
-function applyTheme(theme) {
-  if (theme === 'dark') {
-    document.body.classList.add('dark-mode');
-  } else {
-    document.body.classList.remove('dark-mode');
+function readSavedTheme() {
+  try {
+    const t = localStorage.getItem('theme');
+    return t === 'dark' || t === 'light' ? t : null;
+  } catch (_) {
+    return null;
   }
-  CURRENT_THEME = theme;
-  localStorage.setItem('theme', theme);
+}
+
+function currentTheme() {
+  return SAVED_THEME || (systemDarkQuery.matches ? 'dark' : 'light');
+}
+
+function applyTheme(theme) {
+  document.body.classList.toggle('dark-mode', theme === 'dark');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
   updateThemeIcon(theme);
 }
 
+// An explicit choice is remembered and overrides the system setting from then on
 function toggleTheme() {
-  const newTheme = CURRENT_THEME === 'light' ? 'dark' : 'light';
-  applyTheme(newTheme);
+  SAVED_THEME = currentTheme() === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem('theme', SAVED_THEME); } catch (_) { /* storage unavailable */ }
+  applyTheme(SAVED_THEME);
 }
 
 function updateThemeIcon(theme) {
