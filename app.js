@@ -4,8 +4,14 @@ let CURRENT_MODEL = localStorage.getItem('gemini_model') || 'gemini-3.5-flash';
 let selectedFileBase64 = '';
 let selectedFileMime = '';
 let history = [];
+// History lives in IndexedDB (much larger quota than localStorage). localStorage is
+// read here for older installs (migrated on startup) and used as a fallback store.
+const HISTORY_KEY = 'translation_history';
+const HISTORY_LIMIT = 15;
+let historyDB = null;     // null → fall back to localStorage
+let historyReady = null;  // resolves once history has been loaded from IndexedDB
 try {
-  const stored = JSON.parse(localStorage.getItem('translation_history'));
+  const stored = JSON.parse(localStorage.getItem(HISTORY_KEY));
   if (Array.isArray(stored)) history = stored;
 } catch (e) {
   console.warn('Discarding corrupt translation history:', e);
@@ -101,6 +107,7 @@ function init() {
   checkConsent();
   checkApiKey();
   loadHistory();
+  historyReady = initHistoryStore().then(loadHistory);
   setupEventListeners();
 
   // Set initial settings inputs
@@ -499,9 +506,11 @@ async function runTranslation() {
     // Auto Scroll to results
     elements.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-    // Save to History
-    saveToHistory(data.ocr, data.translation, elements.previewImg.src);
     showToast('Translation completed!');
+
+    // Save to History (a storage problem must never turn a successful translation into an error)
+    saveToHistory(data.ocr, data.translation, elements.previewImg.src)
+      .catch(e => console.error('Unable to save history:', e));
   } catch (err) {
     console.error('Translation error:', err);
     showToast(`Error: ${err.message || 'Something went wrong'}`);
@@ -524,7 +533,8 @@ function setLoadingState(isLoading) {
 }
 
 // Save Translation Record to Local History
-function saveToHistory(ocrText, translationText, imageSrc) {
+async function saveToHistory(ocrText, translationText, imageSrc) {
+  await historyReady; // don't let the startup load overwrite this record
   const record = {
     id: Date.now().toString(),
     date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
@@ -534,21 +544,76 @@ function saveToHistory(ocrText, translationText, imageSrc) {
   };
 
   history.unshift(record); // Add to beginning
-  // Cap history at 15 items to avoid blowing localstorage limit
-  if (history.length > 15) {
-    history.pop();
+  if (history.length > HISTORY_LIMIT) {
+    history.length = HISTORY_LIMIT;
   }
 
-  persistHistory();
+  const saved = await persistHistory();
   loadHistory();
+  if (!saved) {
+    showToast("Translated, but this record couldn't be saved to history.");
+    return;
+  }
+  requestPersistentStorage();
 }
 
-// Write history to localStorage, dropping the oldest records if storage is full
-function persistHistory() {
+// Open the IndexedDB history store and move any localStorage history into it
+async function initHistoryStore() {
+  try {
+    historyDB = await openHistoryDB();
+    const stored = await idbRequest('readonly', store => store.get(HISTORY_KEY));
+    if (Array.isArray(stored)) {
+      history = stored;
+    } else if (history.length) {
+      await idbRequest('readwrite', store => store.put(history, HISTORY_KEY));
+    }
+    localStorage.removeItem(HISTORY_KEY); // frees ~MBs of localStorage once migrated
+  } catch (e) {
+    console.warn('IndexedDB unavailable, keeping history in localStorage:', e);
+    historyDB = null;
+  }
+}
+
+function openHistoryDB() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) return reject(new Error('IndexedDB not supported'));
+    const req = indexedDB.open('maltranslate', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB open blocked'));
+  });
+}
+
+function idbRequest(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const tx = historyDB.transaction('kv', mode);
+    const req = fn(tx.objectStore('kv'));
+    tx.oncomplete = () => resolve(req.result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+// Save history. Resolves to true on success, false if it couldn't be stored.
+async function persistHistory() {
+  await historyReady;
+
+  if (historyDB) {
+    try {
+      await idbRequest('readwrite', store => store.put(history, HISTORY_KEY));
+      return true;
+    } catch (e) {
+      console.error('Unable to save history to IndexedDB:', e);
+      return false;
+    }
+  }
+
+  // localStorage fallback: drop the oldest records if storage is full
   while (true) {
     try {
-      localStorage.setItem('translation_history', JSON.stringify(history));
-      return;
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      return true;
     } catch (e) {
       if (history.length > 1) {
         history.pop();
@@ -556,10 +621,43 @@ function persistHistory() {
         history[0].image = ''; // keep the text even if the image doesn't fit
       } else {
         console.error('Unable to save history:', e);
-        return;
+        return false;
       }
     }
   }
+}
+
+// Ask the browser not to clear saved data, and on iOS suggest the Home Screen,
+// since Safari clears data of sites that aren't installed after weeks without use.
+let persistenceRequested = false;
+async function requestPersistentStorage() {
+  if (persistenceRequested) return;
+  persistenceRequested = true;
+
+  try {
+    if (navigator.storage?.persist && !(await navigator.storage.persisted())) {
+      await navigator.storage.persist();
+    }
+  } catch (_) { /* not supported */ }
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const installed = navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  if (!isIOS || installed) return;
+
+  try {
+    if (localStorage.getItem('home_screen_tip_shown')) return;
+    localStorage.setItem('home_screen_tip_shown', '1');
+  } catch (_) { return; }
+
+  // Wait for the "Translation completed!" toast to finish first
+  setTimeout(() => {
+    showToast('Tip: tap Share → Add to Home Screen so Safari keeps your history and API key.', {
+      actionLabel: 'Got it',
+      persistent: true
+    });
+  }, 3200);
 }
 
 // Load and Display History List
