@@ -6,6 +6,8 @@
   <title>Terms of Use – MalTranslate</title>
   <meta name="description" content="Terms of use and disclaimer for MalTranslate.">
   <meta name="theme-color" content="#ffffff">
+  <!-- Apply the saved theme, or the system one, on <html> before any CSS or paint (app.js / pages.js keep it in sync) -->
+  <script>try{var t=localStorage.getItem('theme'),d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark-mode');document.querySelector('meta[name=theme-color]').content=d?'#0a0a0a':'#ffffff'}catch(e){}</script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -17,8 +19,6 @@
   <link rel="stylesheet" href="pages.css">
 </head>
 <body>
-  <!-- Apply the saved theme, or the system one, before first paint (app.js / pages.js keep it in sync) -->
-  <script>try{var t=localStorage.getItem('theme'),d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.body.classList.add('dark-mode');document.querySelector('meta[name=theme-color]').content=d?'#0a0a0a':'#ffffff'}catch(e){}</script>
   <div class="ambient-glow-1"></div>
 
   <div class="app-container">
