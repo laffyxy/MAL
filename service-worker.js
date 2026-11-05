@@ -36,7 +36,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== FONT_CACHE) {
             console.log('[Service Worker] Removing old cache:', key);
             return caches.delete(key);
           }
@@ -88,9 +88,38 @@ function staleWhileRevalidate(request) {
   });
 }
 
+// Google Fonts (CSS + font files) live in their own cache so the Malayalam font
+// works offline after the first online visit. Kept across app cache bumps.
+const FONT_CACHE = 'mal-translate-fonts-v1';
+const FONT_ORIGINS = ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
+
+function fontCacheFirst(request) {
+  return caches.open(FONT_CACHE).then((cache) =>
+    cache.match(request).then((hit) => {
+      const network = fetch(request).then((response) => {
+        // Cross-origin stylesheet loads are opaque (status 0); fonts are CORS (200)
+        if (response && (response.ok || response.type === 'opaque')) {
+          cache.put(request, response.clone());
+        }
+        return response;
+      });
+      if (hit) {
+        network.catch(() => {/* offline */});
+        return hit;
+      }
+      return network;
+    })
+  );
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  if (request.method === 'GET' && FONT_ORIGINS.includes(url.origin)) {
+    event.respondWith(fontCacheFirst(request));
+    return;
+  }
 
   // Only handle GET requests for our own files
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;

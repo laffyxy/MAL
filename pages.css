@@ -12,8 +12,10 @@
   transition: var(--transition-smooth);
 }
 
-.page-header .back-link:hover {
-  color: var(--accent-primary);
+@media (hover: hover) {
+  .page-header .back-link:hover {
+    color: var(--accent-primary);
+  }
 }
 
 .page-header .back-link svg {
@@ -79,8 +81,10 @@
   font-weight: 500;
 }
 
-.page-card a:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .page-card a:hover {
+    text-decoration: underline;
+  }
 }
 
 .page-card code {
@@ -113,8 +117,10 @@
   transition: var(--transition-smooth);
 }
 
-.btn-danger:hover {
-  background: rgba(239, 68, 68, 0.16);
+@media (hover: hover) {
+  .btn-danger:hover {
+    background: rgba(239, 68, 68, 0.16);
+  }
 }
 
 /* Footer (used on the main app and info pages) */
@@ -135,9 +141,14 @@
   transition: var(--transition-smooth);
 }
 
-.site-footer a:hover,
 .site-footer a[aria-current="page"] {
   color: var(--accent-primary);
+}
+
+@media (hover: hover) {
+  .site-footer a:hover {
+    color: var(--accent-primary);
+  }
 }
 
 .site-footer .footer-copy {

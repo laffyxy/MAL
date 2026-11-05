@@ -89,6 +89,7 @@ function init() {
       if (!hadController || updatePrompted) return;
       updatePrompted = true;
       showToast('A new version is available.', {
+        type: 'info',
         actionLabel: 'Reload',
         onAction: () => window.location.reload(),
         persistent: true
@@ -127,6 +128,11 @@ function setupEventListeners() {
   elements.setupApiKeyBtn.addEventListener('click', openSettings);
   elements.settingsBtn.addEventListener('click', openSettings);
   elements.closeModalBtn.addEventListener('click', closeSettings);
+  // Tap/click on the dimmed backdrop (outside the dialog box) closes it
+  elements.settingsModal.addEventListener('click', (e) => {
+    if (e.target === elements.settingsModal) closeSettings();
+  });
+  elements.settingsModal.addEventListener('keydown', handleSettingsKeydown);
   elements.saveSettingsBtn.addEventListener('click', saveSettings);
   elements.toggleApiKeyBtn.addEventListener('click', toggleApiKeyVisibility);
 
@@ -134,6 +140,12 @@ function setupEventListeners() {
   elements.dropzone.addEventListener('click', (e) => {
     if (e.target === elements.fileInput) return; // click bubbling up from the hidden input itself
     elements.fileInput.click();
+  });
+  elements.dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      elements.fileInput.click();
+    }
   });
   elements.fileInput.addEventListener('change', handleFileSelect);
 
@@ -186,6 +198,22 @@ function setupEventListeners() {
 
   // History Actions
   elements.historyHeader.addEventListener('click', toggleHistoryList);
+  elements.historyHeader.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleHistoryList();
+    }
+  });
+  // One delegated listener instead of inline onclick handlers per item
+  elements.historyList.addEventListener('click', (e) => {
+    const deleteBtn = e.target.closest('.btn-delete-history');
+    if (deleteBtn) {
+      deleteHistoryItem(deleteBtn.dataset.id);
+      return;
+    }
+    const openBtn = e.target.closest('.history-text-wrapper');
+    if (openBtn) loadHistoryItem(openBtn.dataset.id);
+  });
 }
 
 // Check if API Key exists, toggle warning banner
@@ -200,12 +228,42 @@ function checkApiKey() {
 }
 
 // Open/Close Settings Modal
+let settingsReturnFocus = null;
 function openSettings() {
+  settingsReturnFocus = document.activeElement;
   elements.settingsModal.style.display = 'flex';
+  elements.apiKeyInput.focus();
 }
 
 function closeSettings() {
   elements.settingsModal.style.display = 'none';
+  if (settingsReturnFocus && document.contains(settingsReturnFocus)) {
+    settingsReturnFocus.focus();
+  }
+  settingsReturnFocus = null;
+}
+
+// Esc closes the dialog; Tab / Shift+Tab stay inside it
+function handleSettingsKeydown(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSettings();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const focusable = [...elements.settingsModal.querySelectorAll(
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter(el => el.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 
 function toggleApiKeyVisibility() {
@@ -213,6 +271,7 @@ function toggleApiKeyVisibility() {
   elements.apiKeyInput.type = type;
   
   // Toggle icon
+  elements.toggleApiKeyBtn.setAttribute('aria-label', type === 'password' ? 'Show API key' : 'Hide API key');
   elements.toggleApiKeyBtn.innerHTML = type === 'password' 
     ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>`
     : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
@@ -244,7 +303,7 @@ function handleFileSelect(event) {
 // Process selected file (compress and display preview)
 function processFile(file) {
   if (!file.type.startsWith('image/')) {
-    showToast('Please upload an image file.');
+    showToast('Please upload an image file.', { type: 'error' });
     return;
   }
 
@@ -294,12 +353,12 @@ function processFile(file) {
       elements.translateBtn.disabled = false;
     };
     img.onerror = function() {
-      showToast('Could not read this image. Try a different file.');
+      showToast('Could not read this image. Try a different file.', { type: 'error' });
     };
     img.src = e.target.result;
   };
   reader.onerror = function() {
-    showToast('Failed to read the selected file.');
+    showToast('Failed to read the selected file.', { type: 'error' });
   };
   reader.readAsDataURL(file);
 }
@@ -345,7 +404,7 @@ async function openCamera() {
     elements.cameraVideo.srcObject = activeStream;
   } catch (err) {
     console.error('Camera access error:', err);
-    showToast('Failed to access camera. Check permissions.');
+    showToast('Failed to access camera. Check permissions.', { type: 'error' });
     closeCamera();
   }
 }
@@ -365,7 +424,7 @@ let isCapturing = false;
 async function captureFrame() {
   if (!activeStream || isCapturing) return;
   if (!elements.cameraVideo.videoWidth || !elements.cameraVideo.videoHeight) {
-    showToast('Camera is still starting, please try again.');
+    showToast('Camera is still starting, please try again.', { type: 'info' });
     return;
   }
 
@@ -390,7 +449,7 @@ async function captureFrame() {
     showToast('Image captured successfully!');
   } catch (err) {
     console.error('Capture error:', err);
-    showToast('Failed to capture the photo. Please try again.');
+    showToast('Failed to capture the photo. Please try again.', { type: 'error' });
   } finally {
     isCapturing = false;
   }
@@ -407,18 +466,18 @@ function grabVideoFrame() {
 // Run OCR and Translation via Gemini API
 async function runTranslation() {
   if (!API_KEY) {
-    showToast('Please configure your Gemini API Key first.');
+    showToast('Please configure your Gemini API Key first.', { type: 'error' });
     openSettings();
     return;
   }
 
   if (!selectedFileBase64) {
-    showToast('Please capture or upload an image.');
+    showToast('Please capture or upload an image.', { type: 'error' });
     return;
   }
 
   if (!navigator.onLine) {
-    showToast("You're offline. Connect to the internet and try again.");
+    showToast("You're offline. Connect to the internet and try again.", { type: 'error' });
     return;
   }
 
@@ -541,7 +600,7 @@ async function runTranslation() {
       .catch(e => console.error('Unable to save history:', e));
   } catch (err) {
     console.error('Translation error:', err);
-    showToast(`Error: ${err.message || 'Something went wrong'}`);
+    showToast(`Error: ${err.message || 'Something went wrong'}`, { type: 'error' });
   } finally {
     setLoadingState(false);
   }
@@ -565,7 +624,7 @@ async function saveToHistory(ocrText, translationText, imageSrc) {
   await historyReady; // don't let the startup load overwrite this record
   const record = {
     id: Date.now().toString(),
-    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    date: new Date().toISOString(), // formatted at render time
     ocr: ocrText,
     translation: translationText,
     image: imageSrc
@@ -579,7 +638,7 @@ async function saveToHistory(ocrText, translationText, imageSrc) {
   const saved = await persistHistory();
   loadHistory();
   if (!saved) {
-    showToast("Translated, but this record couldn't be saved to history.");
+    showToast("Translated, but this record couldn't be saved to history.", { type: 'error' });
     return;
   }
   requestPersistentStorage();
@@ -682,6 +741,7 @@ async function requestPersistentStorage() {
   // Wait for the "Translation completed!" toast to finish first
   setTimeout(() => {
     showToast('Tip: tap Share → Add to Home Screen so Safari keeps your history and API key.', {
+      type: 'info',
       actionLabel: 'Got it',
       persistent: true
     });
@@ -701,14 +761,14 @@ function loadHistory() {
     const itemEl = document.createElement('div');
     itemEl.className = 'history-item';
     itemEl.innerHTML = `
-      <div class="history-text-wrapper" onclick="loadHistoryItem('${item.id}')">
-        <div class="history-item-eng">${escapeHTML(item.translation)}</div>
-        <div class="history-item-mal">${escapeHTML(item.ocr)}</div>
-        <div class="history-item-date">${escapeHTML(item.date)}</div>
-      </div>
+      <button type="button" class="history-text-wrapper" data-id="${escapeHTML(item.id)}">
+        <span class="history-item-eng">${escapeHTML(item.translation)}</span>
+        <span class="history-item-mal" lang="ml">${escapeHTML(item.ocr)}</span>
+        <span class="history-item-date">${escapeHTML(formatHistoryDate(item.date))}</span>
+      </button>
       <div class="history-actions">
-        <button class="btn-delete-history" onclick="deleteHistoryItem(event, '${item.id}')" title="Delete record">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <button type="button" class="btn-delete-history" data-id="${escapeHTML(item.id)}" title="Delete record" aria-label="Delete record">
+          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         </button>
@@ -718,8 +778,15 @@ function loadHistory() {
   });
 }
 
+// Older records stored a pre-formatted string; newer ones store an ISO timestamp
+function formatHistoryDate(date) {
+  const d = new Date(date);
+  if (!date || isNaN(d)) return date || '';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 // Load clicked history item into main view
-window.loadHistoryItem = function(id) {
+function loadHistoryItem(id) {
   const item = history.find(h => h.id === id);
   if (!item) return;
 
@@ -745,21 +812,21 @@ window.loadHistoryItem = function(id) {
   
   elements.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   showToast('Loaded translation from history!');
-};
+}
 
 // Delete specific history record
-window.deleteHistoryItem = function(event, id) {
-  event.stopPropagation(); // Avoid triggering loadHistoryItem
+function deleteHistoryItem(id) {
   history = history.filter(h => h.id !== id);
   persistHistory();
   loadHistory();
   showToast('Record deleted.');
-};
+}
 
 // Toggle History panel view
 let isHistoryCollapsed = false;
 function toggleHistoryList() {
   isHistoryCollapsed = !isHistoryCollapsed;
+  elements.historyHeader.setAttribute('aria-expanded', String(!isHistoryCollapsed));
   if (isHistoryCollapsed) {
     elements.historyList.style.display = 'none';
     elements.historyChevron.style.transform = 'rotate(-90deg)';
@@ -773,22 +840,25 @@ function toggleHistoryList() {
 function copyToClipboard(text, successMsg) {
   if (!text) return;
   if (!navigator.clipboard) {
-    showToast('Clipboard not available in this browser.');
+    showToast('Clipboard not available in this browser.', { type: 'error' });
     return;
   }
   navigator.clipboard.writeText(text)
     .then(() => showToast(successMsg))
     .catch(err => {
       console.error('Copy failed:', err);
-      showToast('Failed to copy text.');
+      showToast('Failed to copy text.', { type: 'error' });
     });
 }
 
 
 // Toast System
 let toastTimeout;
-function showToast(message, { actionLabel, onAction, persistent = false } = {}) {
+// type: 'success' (default), 'error' or 'info' sets the icon and border colour
+function showToast(message, { type = 'success', actionLabel, onAction, persistent = false } = {}) {
   elements.toastText.textContent = message;
+  elements.toast.classList.remove('toast-success', 'toast-error', 'toast-info');
+  elements.toast.classList.add(`toast-${type}`);
 
   const oldAction = elements.toast.querySelector('.toast-action');
   if (oldAction) oldAction.remove();
@@ -812,7 +882,7 @@ function showToast(message, { actionLabel, onAction, persistent = false } = {}) 
   if (!persistent) {
     toastTimeout = setTimeout(() => {
       elements.toast.classList.remove('show', 'has-action');
-    }, 3000);
+    }, type === 'error' ? 5000 : 3000); // errors stay up longer so they can be read
   }
 }
 
