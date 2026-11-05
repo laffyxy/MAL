@@ -53,6 +53,7 @@ const elements = {
   cameraOverlay: document.getElementById('cameraOverlay'),
   cameraVideo: document.getElementById('cameraVideo'),
   shutterBtn: document.getElementById('shutterBtn'),
+  cameraInput: document.getElementById('cameraInput'),
   closeCameraBtn: document.getElementById('closeCameraBtn'),
 
   // Results
@@ -156,7 +157,19 @@ function setupEventListeners() {
   elements.clearPreviewBtn.addEventListener('click', clearPreview);
 
   // Camera Actions
-  elements.cameraBtn.addEventListener('click', openCamera);
+  elements.cameraBtn.addEventListener('click', () => {
+    // Phones: the native camera app gives full resolution, autofocus and HDR.
+    // Desktop browsers ignore `capture`, so they keep the in-app camera.
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      elements.cameraInput.click();
+    } else {
+      openCamera();
+    }
+  });
+  elements.cameraInput.addEventListener('change', (e) => {
+    handleFileSelect(e);
+    e.target.value = ''; // allow taking another photo right away
+  });
   elements.closeCameraBtn.addEventListener('click', closeCamera);
   elements.shutterBtn.addEventListener('click', captureFrame);
 
@@ -311,8 +324,9 @@ async function openCamera() {
     const constraints = {
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        // Ask for as much resolution as the camera has; small text needs it
+        width: { ideal: 3840 },
+        height: { ideal: 2160 }
       },
       audio: false
     };
@@ -346,34 +360,48 @@ function closeCamera() {
   elements.cameraOverlay.style.display = 'none';
 }
 
-// Capture frame from camera video
-function captureFrame() {
-  if (!activeStream) return;
+// Take a photo with the in-app camera
+let isCapturing = false;
+async function captureFrame() {
+  if (!activeStream || isCapturing) return;
   if (!elements.cameraVideo.videoWidth || !elements.cameraVideo.videoHeight) {
     showToast('Camera is still starting, please try again.');
     return;
   }
 
+  isCapturing = true;
+  try {
+    // Prefer a real still photo (full sensor resolution); fall back to grabbing a video frame
+    let blob = null;
+    const track = activeStream.getVideoTracks()[0];
+    if ('ImageCapture' in window && track) {
+      try {
+        blob = await new ImageCapture(track).takePhoto();
+      } catch (e) {
+        console.warn('takePhoto failed, using a video frame instead:', e);
+      }
+    }
+    if (!blob) blob = await grabVideoFrame();
+    if (!blob) throw new Error('Could not capture an image');
+
+    closeCamera();
+    // Same path as uploads: downscale, compress, preview
+    processFile(new File([blob], 'camera.jpg', { type: blob.type || 'image/jpeg' }));
+    showToast('Image captured successfully!');
+  } catch (err) {
+    console.error('Capture error:', err);
+    showToast('Failed to capture the photo. Please try again.');
+  } finally {
+    isCapturing = false;
+  }
+}
+
+function grabVideoFrame() {
   const canvas = document.createElement('canvas');
   canvas.width = elements.cameraVideo.videoWidth;
   canvas.height = elements.cameraVideo.videoHeight;
-  
-  const ctx = canvas.getContext('2d');
-  // Mirror frame only if using front camera (we assume environment camera is not mirrored)
-  ctx.drawImage(elements.cameraVideo, 0, 0, canvas.width, canvas.height);
-  
-  const dataURL = canvas.toDataURL('image/jpeg', 0.85);
-  selectedFileBase64 = dataURL.split(',')[1];
-  selectedFileMime = 'image/jpeg';
-  
-  // Show in Preview
-  elements.previewImg.src = dataURL;
-  elements.dropzone.style.display = 'none';
-  elements.previewContainer.style.display = 'block';
-  elements.translateBtn.disabled = false;
-  
-  closeCamera();
-  showToast('Image captured successfully!');
+  canvas.getContext('2d').drawImage(elements.cameraVideo, 0, 0, canvas.width, canvas.height);
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
 }
 
 // Run OCR and Translation via Gemini API
