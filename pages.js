@@ -22,7 +22,7 @@
   const toggleBtn = document.getElementById('themeToggleBtn');
 
   function applyTheme(theme) {
-    document.body.classList.toggle('dark-mode', theme === 'dark');
+    document.documentElement.classList.toggle('dark-mode', theme === 'dark');
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
     if (toggleBtn) {
@@ -38,7 +38,7 @@
 
   if (toggleBtn) {
     toggleBtn.addEventListener('click', function () {
-      const next = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+      const next = document.documentElement.classList.contains('dark-mode') ? 'light' : 'dark';
       try { localStorage.setItem('theme', next); } catch (e) { /* storage unavailable */ }
       applyTheme(next);
     });

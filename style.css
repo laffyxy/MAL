@@ -1,6 +1,7 @@
 /* Minimal monochrome theme. Fonts are loaded via <link> in the HTML, not a render-blocking @import */
 
 :root {
+  color-scheme: light;
   --bg-primary: #ffffff;
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;
@@ -48,7 +49,8 @@
   --danger: #dc2626;
 }
 
-body.dark-mode {
+:root.dark-mode {
+  color-scheme: dark;
   --bg-primary: #0a0a0a;
   --bg-secondary: #111111;
   --bg-card: #0a0a0a;
@@ -93,6 +95,10 @@ body.dark-mode {
   padding: 0;
 }
 
+html {
+  background-color: var(--bg-primary);
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-primary);
@@ -104,7 +110,6 @@ body {
   align-items: center;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 svg {

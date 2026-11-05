@@ -1329,7 +1329,7 @@ function currentTheme() {
 }
 
 function applyTheme(theme) {
-  document.body.classList.toggle('dark-mode', theme === 'dark');
+  document.documentElement.classList.toggle('dark-mode', theme === 'dark');
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
   updateThemeIcon(theme);
