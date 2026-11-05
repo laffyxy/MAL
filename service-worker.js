@@ -1,6 +1,6 @@
 // Bump only when the ASSETS list changes. App code (HTML/JS/CSS) is served
 // network-first, so a normal deploy reaches users without touching this.
-const CACHE_NAME = 'mal-translate-cache-v6';
+const CACHE_NAME = 'mal-translate-cache-v7';
 const ASSETS = [
   './',
   './index.html',

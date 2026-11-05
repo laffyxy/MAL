@@ -783,13 +783,8 @@ async function runTranslation() {
     Analyze this image and perform two tasks:
     1. Extract all Malayalam text present in the image (OCR). Maintain the formatting, layout and spelling.
     2. Translate the extracted Malayalam text into clear, contextually accurate English.
-    
-    You MUST output your response ONLY as a JSON object, conforming to the following structure:
-    {
-      "ocr": "Extracted Malayalam text here",
-      "translation": "English translation here"
-    }
-    Do not wrap the output in markdown block code syntax or add conversational filler. Output only raw JSON.
+
+    Put the extracted Malayalam text in "ocr" and the English translation in "translation".
   `;
 
   const requestBody = {
@@ -807,7 +802,17 @@ async function runTranslation() {
       }
     ],
     generationConfig: {
-      responseMimeType: "application/json"
+      // Structured output: Gemini returns raw JSON matching this schema, no fences or filler
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          ocr: { type: "STRING", description: "Malayalam text extracted from the image, preserving layout and spelling" },
+          translation: { type: "STRING", description: "Clear, contextually accurate English translation of the extracted text" }
+        },
+        required: ["ocr", "translation"],
+        propertyOrdering: ["ocr", "translation"]
+      }
     }
   };
 
@@ -842,7 +847,7 @@ async function runTranslation() {
     
     // Parse response
     const candidate = result.candidates?.[0];
-    let textResponse = (candidate?.content?.parts || [])
+    const textResponse = (candidate?.content?.parts || [])
       .filter(part => typeof part.text === 'string' && !part.thought)
       .map(part => part.text)
       .join('')
@@ -850,13 +855,6 @@ async function runTranslation() {
     if (!textResponse) {
       const reason = candidate?.finishReason || result.promptFeedback?.blockReason;
       throw new Error(reason ? `No content returned from Gemini (${reason}).` : 'No content returned from Gemini.');
-    }
-
-    // Extract the JSON object even if Gemini wrapped it in markdown fences or extra text
-    const firstBrace = textResponse.indexOf('{');
-    const lastBrace = textResponse.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      textResponse = textResponse.substring(firstBrace, lastBrace + 1);
     }
 
     let data;
