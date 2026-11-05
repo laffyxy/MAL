@@ -12,7 +12,11 @@ MalTranslate is a premium, mobile-optimized Progressive Web App (PWA) that perfo
 - **Dual Capture Methods**:
   - **File Upload & Drag-and-Drop**: Easily upload image files (supports PNG, JPG, JPEG).
   - **Camera Integration**: Capture photos directly from your device's camera (with automatic back-camera preference on mobile devices).
-- **Modern & Responsive UI**: Mobile-first design featuring custom HSL colors, dark/light mode themes, and glowing ambient background effects.
+  - **Share into the app (Android)**: Once installed, MalTranslate appears in the system share sheet, so you can send a photo straight from the gallery or another app. (iOS does not support Web Share Target.)
+  - **Paste (desktop)**: Press Ctrl+V / Cmd+V to use an image from the clipboard.
+- **Crop & Rotate**: Trim a photo down to the text block and fix its orientation before sending; this also improves OCR.
+- **Share Results**: Send the Malayalam text or the English translation to WhatsApp, Messages and more with the system share menu.
+- **Modern & Responsive UI**: Mobile-first design featuring custom HSL colors, dark/light themes that follow your system setting until you pick one, and glowing ambient background effects.
 - **Translation History**: Automatically caches up to 15 recent translation records locally in the browser so you can reload or delete them later.
 - **Offline-Ready (PWA)**: Can be installed on mobile (iOS/Android) and desktop platforms. Static assets are served offline using service worker caching (stale-while-revalidate strategy).
 - **Customizable Gemini Settings**: Fully configurable settings panel to update your Gemini API key and select preferred models.

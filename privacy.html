@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Privacy Policy – MalTranslate</title>
   <meta name="description" content="How MalTranslate handles your images, text, API key and other data.">
-  <meta name="theme-color" content="#7c3aed">
+  <meta name="theme-color" content="#f8fafc">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <!-- Fonts: preconnect + non-@import link so they don't block on style.css (cached offline by the service worker) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +17,8 @@
   <link rel="stylesheet" href="pages.css">
 </head>
 <body>
+  <!-- Apply the saved theme, or the system one, before first paint (app.js / pages.js keep it in sync) -->
+  <script>try{var t=localStorage.getItem('theme'),d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.body.classList.add('dark-mode');document.querySelector('meta[name=theme-color]').content=d?'#07080d':'#f8fafc'}catch(e){}</script>
   <div class="ambient-glow-1"></div>
 
   <div class="app-container">
