@@ -13,6 +13,9 @@ try {
 let activeStream = null;
 let CURRENT_THEME = localStorage.getItem('theme') || 'light';
 
+// Bump this when the Privacy Policy or Terms change to ask users to accept again
+const POLICY_VERSION = '2026-11-05';
+
 // DOM Elements
 const elements = {
   // Theme Toggle
@@ -60,7 +63,12 @@ const elements = {
 
   // Toast
   toast: document.getElementById('toast'),
-  toastText: document.getElementById('toastText')
+  toastText: document.getElementById('toastText'),
+
+  // Consent
+  consentModal: document.getElementById('consentModal'),
+  consentCheckbox: document.getElementById('consentCheckbox'),
+  consentAcceptBtn: document.getElementById('consentAcceptBtn')
 };
 
 // Initialize Application
@@ -77,6 +85,7 @@ function init() {
   // Apply default or stored theme
   applyTheme(CURRENT_THEME);
 
+  checkConsent();
   checkApiKey();
   loadHistory();
   setupEventListeners();
@@ -653,6 +662,37 @@ function escapeHTML(str) {
 function adjustTextareaHeight(textarea) {
   textarea.style.height = 'auto';
   textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+// First-visit Privacy Policy / Terms consent
+function hasAcceptedPolicies() {
+  try {
+    return localStorage.getItem('policies_accepted') === POLICY_VERSION;
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkConsent() {
+  if (hasAcceptedPolicies()) return;
+
+  elements.consentModal.style.display = 'flex';
+  elements.consentCheckbox.checked = false;
+  elements.consentAcceptBtn.disabled = true;
+
+  elements.consentCheckbox.addEventListener('change', () => {
+    elements.consentAcceptBtn.disabled = !elements.consentCheckbox.checked;
+  });
+
+  elements.consentAcceptBtn.addEventListener('click', () => {
+    if (!elements.consentCheckbox.checked) return;
+    try {
+      localStorage.setItem('policies_accepted', POLICY_VERSION);
+    } catch (e) {
+      console.warn('Could not save consent:', e);
+    }
+    elements.consentModal.style.display = 'none';
+  });
 }
 
 // Theme Management Functions

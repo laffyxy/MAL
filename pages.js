@@ -36,7 +36,7 @@
     clearBtn.addEventListener('click', function () {
       if (!confirm('Delete your saved API key, settings, theme and translation history from this browser?')) return;
       try {
-        ['gemini_api_key', 'gemini_model', 'translation_history', 'theme'].forEach(function (k) {
+        ['gemini_api_key', 'gemini_model', 'translation_history', 'theme', 'policies_accepted'].forEach(function (k) {
           localStorage.removeItem(k);
         });
         clearBtn.textContent = 'All local data cleared';
