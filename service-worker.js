@@ -1,6 +1,6 @@
 // Bump only when the ASSETS list changes. App code (HTML/JS/CSS) is served
 // network-first, so a normal deploy reaches users without touching this.
-const CACHE_NAME = 'mal-translate-cache-v7';
+const CACHE_NAME = 'mal-translate-cache-v8';
 const ASSETS = [
   './',
   './index.html',
@@ -95,7 +95,7 @@ function staleWhileRevalidate(request) {
 
 // Google Fonts (CSS + font files) live in their own cache so the Malayalam font
 // works offline after the first online visit. Kept across app cache bumps.
-const FONT_CACHE = 'mal-translate-fonts-v1';
+const FONT_CACHE = 'mal-translate-fonts-v2';
 const FONT_ORIGINS = ['https://fonts.googleapis.com', 'https://fonts.gstatic.com'];
 
 function fontCacheFirst(request) {
