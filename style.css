@@ -891,6 +891,63 @@ h1 {
   transform: translateY(-1px);
 }
 
+/* First-visit Consent Dialog */
+.consent-overlay {
+  z-index: 200;
+}
+
+.consent-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.consent-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.consent-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.consent-check input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.consent-check a {
+  color: var(--accent-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.consent-check a:hover {
+  text-decoration: underline;
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
 /* Toast Notification */
 .toast {
   position: fixed;

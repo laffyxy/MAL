@@ -199,6 +199,22 @@
     </div>
   </div>
 
+  <!-- First-visit Consent Dialog -->
+  <div class="modal-overlay consent-overlay" id="consentModal" role="dialog" aria-modal="true" aria-labelledby="consentTitle">
+    <div class="modal-content">
+      <div class="consent-heading">
+        <img class="logo-icon" src="icon.svg" alt="">
+        <h2 class="modal-title" id="consentTitle">Welcome to MalTranslate</h2>
+      </div>
+      <p class="consent-text">MalTranslate sends the images you choose to Google's Gemini API to read and translate them. Your API key, settings and history stay in this browser.</p>
+      <label class="consent-check" for="consentCheckbox">
+        <input type="checkbox" id="consentCheckbox">
+        <span>I have read and agree to the <a href="privacy.html">Privacy Policy</a> and <a href="terms.html">Terms of Use</a>.</span>
+      </label>
+      <button class="btn-primary" id="consentAcceptBtn" disabled>Continue</button>
+    </div>
+  </div>
+
   <!-- Toast Notification Popup -->
   <div class="toast" id="toast">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="var(--accent-secondary)" width="18" height="18">

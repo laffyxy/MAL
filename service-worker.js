@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mal-translate-cache-v3';
+const CACHE_NAME = 'mal-translate-cache-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -18,7 +18,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[Service Worker] Pre-caching offline assets');
-      return cache.addAll(ASSETS);
+      // Bypass the HTTP cache so a new version never precaches stale files
+      return cache.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' })));
     })
   );
   self.skipWaiting();
