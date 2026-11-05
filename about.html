@@ -6,8 +6,11 @@
   <title>About – MalTranslate</title>
   <meta name="description" content="About MalTranslate, a Malayalam OCR and English translation app powered by Google Gemini.">
   <meta name="theme-color" content="#ffffff">
+  <!-- Until style.css applies, keep the page hidden on the right background (some browsers, e.g. Firefox, can paint before it loads),
+       and skip transitions until the page has loaded so nothing animates in from its unstyled state -->
+  <style>html{background:#fff}html.dark-mode{background:#0a0a0a;color-scheme:dark}body{visibility:hidden}html.preload *,html.preload *::before,html.preload *::after{transition:none!important}</style>
   <!-- Apply the saved theme, or the system one, on <html> before any CSS or paint (app.js / pages.js keep it in sync) -->
-  <script>try{var t=localStorage.getItem('theme'),d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark-mode');document.querySelector('meta[name=theme-color]').content=d?'#0a0a0a':'#ffffff'}catch(e){}</script>
+  <script>(function(h){h.classList.add('preload');addEventListener('load',function(){requestAnimationFrame(function(){requestAnimationFrame(function(){h.classList.remove('preload')})})});try{var t=localStorage.getItem('theme'),d=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)h.classList.add('dark-mode');document.querySelector('meta[name=theme-color]').content=d?'#0a0a0a':'#ffffff'}catch(e){}})(document.documentElement)</script>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">

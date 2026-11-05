@@ -100,6 +100,7 @@ html {
 }
 
 body {
+  visibility: visible; /* revealed once this stylesheet applies (hidden by the inline style in <head>) */
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
