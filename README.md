@@ -81,3 +81,17 @@ MalTranslate can be installed on your device as a native-like app:
 - **On Mobile (Chrome/Android)**: Tap the prompt to add the application to your home screen or click the three dots menu and select "Install app".
 - **On Mobile (Safari/iOS)**: Tap the Share button in Safari, scroll down, and select "Add to Home Screen".
 - **On Desktop (Chrome/Edge/Safari)**: Click the install icon in the address bar to add it to your applications.
+
+---
+
+## 🐞 Bug Reports
+
+Bug reports are accepted only through [GitHub Issues](https://github.com/laffyxy/MAL/issues). Please never include your API key in an issue.
+
+## 🔒 Security
+
+Found a security vulnerability? Please report it privately as described in [SECURITY.md](SECURITY.md), not in a public issue.
+
+## 📄 License
+
+MalTranslate is released under the [MIT License](LICENSE).
