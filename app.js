@@ -75,6 +75,19 @@ const elements = {
 function init() {
   // Register Service Worker
   if ('serviceWorker' in navigator) {
+    // A new worker took over this page: the page may still be running older code
+    const hadController = !!navigator.serviceWorker.controller;
+    let updatePrompted = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || updatePrompted) return;
+      updatePrompted = true;
+      showToast('A new version is available.', {
+        actionLabel: 'Reload',
+        onAction: () => window.location.reload(),
+        persistent: true
+      });
+    });
+
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./service-worker.js')
         .then(reg => console.log('[Service Worker] Registered successfully:', reg.scope))
@@ -635,14 +648,33 @@ function copyToClipboard(text, successMsg) {
 
 // Toast System
 let toastTimeout;
-function showToast(message) {
+function showToast(message, { actionLabel, onAction, persistent = false } = {}) {
   elements.toastText.textContent = message;
+
+  const oldAction = elements.toast.querySelector('.toast-action');
+  if (oldAction) oldAction.remove();
+  elements.toast.classList.toggle('has-action', !!actionLabel);
+
+  if (actionLabel) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = actionLabel;
+    btn.addEventListener('click', () => {
+      elements.toast.classList.remove('show', 'has-action');
+      onAction?.();
+    });
+    elements.toast.appendChild(btn);
+  }
+
   elements.toast.classList.add('show');
-  
+
   clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    elements.toast.classList.remove('show');
-  }, 3000);
+  if (!persistent) {
+    toastTimeout = setTimeout(() => {
+      elements.toast.classList.remove('show', 'has-action');
+    }, 3000);
+  }
 }
 
 // HTML Escaping Utility
