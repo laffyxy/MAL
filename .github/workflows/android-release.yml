@@ -106,7 +106,7 @@ jobs:
         if: always()
         run: rm -f keystore.properties "$RUNNER_TEMP/release.jks"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: MalTranslate-${{ steps.version.outputs.name }}
           path: android/dist/*

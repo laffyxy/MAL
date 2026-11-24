@@ -1,7 +1,11 @@
 # MalTranslate
-### Malayalam OCR & English Translator PWA
+### Malayalam OCR & English Translator for the web and Android
 
-MalTranslate is a mobile-first Progressive Web App (PWA). It reads Malayalam text from images with OCR and translates it into clear, natural English. It runs entirely in the browser and uses the **Google Gemini API** with your own API key. There is no backend server.
+MalTranslate reads Malayalam text from images with OCR and translates it into clear, natural English. It uses the **Google Gemini API** with your own API key, and there is no backend server.
+
+It comes in two forms:
+- **Web app (PWA)**: a mobile-first Progressive Web App that runs entirely in the browser.
+- **Android app**: a native Kotlin + Jetpack Compose app with the same features. It runs fully on the phone and needs no hosting. Download the APK from [Releases](https://github.com/laffyxy/MAL/releases/latest).
 
 ---
 
@@ -33,11 +37,18 @@ MalTranslate is a mobile-first Progressive Web App (PWA). It reads Malayalam tex
 
 ## 🛠️ Built With
 
+**Web app**
 - **HTML5**: Semantic, accessible markup.
 - **Vanilla CSS3**: Custom properties, light/dark themes and a responsive layout without frameworks.
 - **Vanilla JavaScript (ES6+)**: UI, camera, cropping, IndexedDB history and API requests.
 - **Google Gemini API**: Multimodal OCR and translation with structured JSON output.
 - **Service Worker & Web App Manifest**: Offline caching, installation and the share target.
+
+**Android app**
+- **Kotlin & Jetpack Compose** (Material 3), with no third-party libraries beyond AndroidX.
+- **Gemini REST API** called directly with `HttpURLConnection` and `org.json`.
+- **Android Gradle Plugin 9.5 / Gradle 9.6**, minSdk 26 (Android 8.0), targetSdk 36.
+- **GitHub Actions** builds signed release APKs and AABs.
 
 ---
 
@@ -54,6 +65,13 @@ MalTranslate is a mobile-first Progressive Web App (PWA). It reads Malayalam tex
 ├── service-worker.js   # Offline caching & share-target handling
 ├── manifest.json       # PWA manifest
 ├── icon.svg, icons/    # App icons (SVG + PNG, including maskable)
+├── android/            # Native Android app (Kotlin + Jetpack Compose)
+│   └── app/src/main/java/com/maltranslate/app/
+│       ├── MainActivity.kt   # Photo picker, camera and share-sheet intake
+│       ├── data/             # Gemini client, settings, history, image processing
+│       └── ui/               # Compose screens, crop editor, dialogs, theme
+├── .github/workflows/
+│   └── android-release.yml   # Builds and publishes signed Android releases
 ├── LICENSE
 └── SECURITY.md
 ```
@@ -114,6 +132,66 @@ Your key and settings are stored only in your browser's local storage. Images an
 - **Android (Chrome)**: Accept the install prompt, or open the ⋮ menu and choose **Install app**.
 - **iOS (Safari)**: Tap **Share**, then **Add to Home Screen**.
 - **Desktop (Chrome/Edge)**: Click the install icon in the address bar.
+
+---
+
+## 🤖 Android App
+
+### Install
+1. Download `MalTranslate-x.y.z.apk` from the [latest release](https://github.com/laffyxy/MAL/releases/latest).
+2. Open it on your phone and allow installs from that source when Android asks.
+3. Enter your Gemini API key under **Settings** in the app.
+
+Requires Android 8.0 or newer. Each new release installs over the previous one and keeps your settings and history.
+
+### How it differs from the web app
+- **Camera**: Opens the phone's own camera app, so the app needs no camera permission.
+- **Photos**: Uses the system photo picker, which gives the app access only to the picture you choose.
+- **Share into the app**: MalTranslate appears in the share sheet for images.
+- **Storage**: Your API key, settings and the 15 most recent translations are kept in the app's private storage. Uninstalling the app removes them.
+- **Fonts**: Inter and Inter Tight are bundled (SIL Open Font License, see `android/FONTS-LICENSE-OFL.txt`). Malayalam text uses the system's Noto Sans Malayalam.
+
+### Build it yourself
+Open the `android/` folder in Android Studio and choose **Run**, or build from the command line:
+
+```bash
+cd android
+./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+```
+
+On Windows, use `gradlew.bat`. Use Android Studio's bundled JDK, or any JDK that Gradle supports.
+
+To build a signed release locally, create `android/keystore.properties`. It is git-ignored, so never commit it or the keystore:
+
+```properties
+storeFile=C:/path/to/maltranslate.jks
+storePassword=...
+keyAlias=maltranslate
+keyPassword=...
+```
+
+Then run `./gradlew assembleRelease`. Without this file, release builds are unsigned.
+
+### Publishing a release
+Releases are built by [`android-release.yml`](.github/workflows/android-release.yml). Push a version tag:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The workflow builds a signed APK and AAB and publishes them as a GitHub Release. The tag sets the app version: `v1.2.3` becomes versionName `1.2.3` and versionCode `10203`, so minor and patch numbers must stay below 100. Running the workflow by hand from the **Actions** tab builds the same files as a downloadable artifact without creating a release.
+
+It needs these repository secrets, under **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|---|---|
+| `KEYSTORE_BASE64` | The `.jks` keystore, base64-encoded |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_ALIAS` | Key alias |
+| `KEY_PASSWORD` | Key password |
+
+> Keep a backup of the keystore and its password. Every update must be signed with the same key, and a lost key cannot be recovered.
 
 ---
 
