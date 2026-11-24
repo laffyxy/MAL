@@ -13,8 +13,9 @@ android {
         applicationId = "com.maltranslate.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI passes these from the release tag (-PversionCode=… -PversionName=…); local builds use the defaults
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("versionName") as String?) ?: "1.0"
     }
 
     // Release signing: the keystore and its passwords live in keystore.properties (git-ignored), e.g.
