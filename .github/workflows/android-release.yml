@@ -1,0 +1,121 @@
+# Builds a signed release of the Android app.
+#
+# Push a tag like v1.2.3 to publish a GitHub Release with the signed APK and AAB attached:
+#   git tag v1.2.3 && git push origin v1.2.3
+# The tag sets versionName (1.2.3) and versionCode (major*10000 + minor*100 + patch = 10203).
+#
+# Running it by hand (Actions tab -> Android release -> Run workflow) builds the same files
+# and keeps them as a workflow artifact, without creating a release.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   KEYSTORE_BASE64    the .jks keystore, base64-encoded
+#   KEYSTORE_PASSWORD  the keystore password
+#   KEY_ALIAS          the key alias, e.g. maltranslate
+#   KEY_PASSWORD       the key password
+
+name: Android release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Work out the version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              echo "::error::Tag '$GITHUB_REF_NAME' must look like v1.2.3"
+              exit 1
+            fi
+            major=${BASH_REMATCH[1]}; minor=${BASH_REMATCH[2]}; patch=${BASH_REMATCH[3]}
+            if (( minor > 99 || patch > 99 )); then
+              echo "::error::Minor and patch numbers must be below 100"
+              exit 1
+            fi
+            name="$major.$minor.$patch"
+            code=$(( major * 10000 + minor * 100 + patch ))
+          else
+            # Manual run: a test build that never collides with a tagged release's version
+            name="0.0.0-build.$GITHUB_RUN_NUMBER"
+            code=$GITHUB_RUN_NUMBER
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Building versionName=$name versionCode=$code"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25' # matches gradle/gradle-daemon-jvm.properties
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Set up signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "::error::Signing secrets are missing. Add KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      - name: Build signed APK and AAB
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-configuration-cache \
+            -PversionName="${{ steps.version.outputs.name }}" \
+            -PversionCode="${{ steps.version.outputs.code }}"
+
+      - name: Check the signature and rename
+        run: |
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner"
+          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/MalTranslate-${{ steps.version.outputs.name }}.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "dist/MalTranslate-${{ steps.version.outputs.name }}.aab"
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f keystore.properties "$RUNNER_TEMP/release.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MalTranslate-${{ steps.version.outputs.name }}
+          path: android/dist/*
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "MalTranslate $GITHUB_REF_NAME" \
+            --generate-notes
